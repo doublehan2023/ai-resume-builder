@@ -10,7 +10,7 @@ import Login from './pages/Login'
 const App = () => {
   return (
     <>
-      <Routes>
+       <Routes>
         <Route path='/' element={<Home />}/>
         <Route path='app' element={<Layout />}>
           <Route index element={<Dashboard />}/>
