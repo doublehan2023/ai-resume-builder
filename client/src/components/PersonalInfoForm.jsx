@@ -1,6 +1,5 @@
 import {
   BriefcaseBusiness,
-  Globe,
   GlobeIcon,
   LinkIcon,
   Mail,
@@ -8,7 +7,6 @@ import {
   Phone,
   UserIcon,
 } from "lucide-react";
-import React from "react";
 
 const PersonalInfoForm = ({
   data,
