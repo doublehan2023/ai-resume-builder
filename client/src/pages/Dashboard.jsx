@@ -7,7 +7,7 @@ import {
   UploadCloudIcon,
   XIcon,
 } from "lucide-react";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { dummyResumeData } from "../assets/assets";
 import { useNavigate } from "react-router-dom";
 
