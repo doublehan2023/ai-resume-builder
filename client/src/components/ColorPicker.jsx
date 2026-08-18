@@ -38,6 +38,7 @@ const ColorPicker = ({ selectedColor, onChange }) => {
                     flex flex-col"
               onClick={() => {
                 onChange(color.value);
+                setIsOpen(false);
               }}
             >
               <div
