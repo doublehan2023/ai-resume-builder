@@ -14,8 +14,8 @@ import { useNavigate } from "react-router-dom";
 const Dashboard = () => {
   const colors = ["#9333ea", "#d97706", "#dc2626", "#0284c7", "#16a34a"];
   const [allResumes, setAllResumes] = useState([]);
-  const [showCreateResume, setShowCreateResume] = useState([false]);
-  const [showUploadResume, setShowUploadResume] = useState([false]);
+  const [showCreateResume, setShowCreateResume] = useState(false);
+  const [showUploadResume, setShowUploadResume] = useState(false);
   const [title, setTitle] = useState("");
   const [resume, setResume] = useState(null);
   const [editResumeId, setEditResumeId] = useState("");
@@ -195,6 +195,7 @@ const Dashboard = () => {
                 className="absolute top-4 right-4 text-slate-400
               hover: text-slate-600 cursor-pointer transition-colors"
                 onClick={() => {
+                  setShowCreateResume(false);
                   setEditResumeId("");
                   setTitle("");
                 }}
