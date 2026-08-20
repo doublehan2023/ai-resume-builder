@@ -1,6 +1,6 @@
 import { Plus, Trash } from "lucide-react";
 
-const ProjectForm = ({ data, onChange }) => {
+const ProjectForm = ({ data = [], onChange }) => {
   const addProject = () => {
     const newProject = {
       name: "",
@@ -43,7 +43,8 @@ const ProjectForm = ({ data, onChange }) => {
         </button>
       </div>
 
-      <div className="space-y-6">
+     
+     <div className="space-y-4 mt-6">
         {data.map((project, index) => (
           <div
             key={index}
@@ -62,7 +63,7 @@ const ProjectForm = ({ data, onChange }) => {
               </button>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-3">
+            <div className="grid gap-3">
               <input
                 value={project.name || ""}
                 onChange={(e) => updateProject(index, "name", e.target.value)}
@@ -92,6 +93,7 @@ const ProjectForm = ({ data, onChange }) => {
           </div>
         ))}
       </div>
+     
     </div>
   );
 };
