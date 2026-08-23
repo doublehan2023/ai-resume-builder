@@ -1,10 +1,10 @@
 import ImageKit from "../configs/imageKit.js";
 import Resume from "../models/Resume.js";
-import fs from "fs";
+import fs from "fs/promises";
 
 // controller for creating a new resume
 // POST: /api/resumes/create
-export const createResumes = async (req, res) => {
+export const createResume = async (req, res) => {
   try {
     const userId = req.userId;
     const { title } = req.body;
@@ -103,12 +103,13 @@ export const getPublicResumeById = async (req, res) => {
 };
 
 // controller for updating resumes
-// PUT: /api/resumes/update/:resumeId
+// PUT: /api/resumes/update
 export const updateResume = async (req, res) => {
+  const image = req.file;
+
   try {
     const userId = req.userId;
     const { resumeId, resumeData, removeBackground } = req.body;
-    const image = req.file;
 
     if (!resumeId) {
       return res.status(400).json({ message: "Resume ID is required" });
@@ -117,7 +118,7 @@ export const updateResume = async (req, res) => {
     let resumeDataCopy = JSON.parse(resumeData);
 
     if (image) {
-      const imageBufferData = fs.createReadStream(image.path);
+      const imageBufferData = await fs.readFile(image.path);
 
       const response = await ImageKit.files.upload({
         file: imageBufferData,
@@ -126,7 +127,7 @@ export const updateResume = async (req, res) => {
         transformation: {
           pre:
             "w-300, h-300, fo-face,z-0.75" +
-            (removeBackground ? `,e-bgremove` : ""),
+            (removeBackground === "true" ? `,e-bgremove` : ""),
         },
       });
 
@@ -136,7 +137,9 @@ export const updateResume = async (req, res) => {
     const resume = await Resume.findOneAndUpdate(
       { _id: resumeId, userId },
       resumeDataCopy,
-      { new: true },
+      { new: true,
+       runValidators: true,
+      },
     );
 
     if (!resume) {
@@ -149,5 +152,10 @@ export const updateResume = async (req, res) => {
     });
   } catch (error) {
     return res.status(400).json({ message: error.message });
+  } finally {
+    // Multer stores uploads temporarily on disk; remove the file after use.
+    if (image?.path) {
+      await fs.unlink(image.path).catch(() => {});
+    }
   }
 };
