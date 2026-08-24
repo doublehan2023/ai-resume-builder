@@ -11,7 +11,7 @@ const generateToken = (userId) => {
 };
 
 // controller for user registration
-// POST: /api/users/register
+// POST: /api/user/register
 export const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -44,10 +44,14 @@ export const registerUser = async (req, res) => {
 };
 
 // controller for user login
-// POST: /api/users/login
+// POST: /api/user/login
 export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
 
     // check if user exists
     const user = await User.findOne({ email });
@@ -56,7 +60,7 @@ export const loginUser = async (req, res) => {
     }
 
     // check if password is correct
-    if (!User.comparePassword(password)) {
+    if (!user.comparePassword(password)) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
@@ -71,7 +75,7 @@ export const loginUser = async (req, res) => {
 };
 
 // controller for getting user by id
-// GET: /api/users/data
+// GET: /api/user/data
 export const getUserById = async (req, res) => {
   try {
     const userId = req.userId;
@@ -79,7 +83,7 @@ export const getUserById = async (req, res) => {
     // check if user exits
     const user = await User.findById(userId);
     if (!user) {
-      res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: "User not found" });
     }
     // return user
     user.password = undefined;
@@ -91,7 +95,7 @@ export const getUserById = async (req, res) => {
 };
 
 // controller for getting user resumes
-// GET: /api/users/resumes
+// GET: /api/user/resumes
 export const getUserResumes = async (req, res) => {
   try {
     const userId = req.userId;
