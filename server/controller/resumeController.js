@@ -115,7 +115,7 @@ export const updateResume = async (req, res) => {
       return res.status(400).json({ message: "Resume ID is required" });
     }
 
-    let resumeDataCopy = JSON.parse(resumeData);
+    let resumeDataCopy = JSON.parse(JSON.stringify(resumeData));
 
     if (image) {
       const imageBufferData = await fs.readFile(image.path);
@@ -131,15 +131,13 @@ export const updateResume = async (req, res) => {
         },
       });
 
-      resumeDataCopy.personal_info.image = response.url
+      resumeDataCopy.personal_info.image = response.url;
     }
 
     const resume = await Resume.findOneAndUpdate(
       { _id: resumeId, userId },
       resumeDataCopy,
-      { new: true,
-       runValidators: true,
-      },
+      { new: true, runValidators: true },
     );
 
     if (!resume) {

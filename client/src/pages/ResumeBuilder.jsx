@@ -25,6 +25,7 @@ import ExperienceForm from "../components/ExperienceForm";
 import EducationForm from "../components/EducationForm";
 import ProjectForm from "../components/ProjectForm";
 import SkillsForm from "../components/SkillsForm";
+import { useSelector } from "react-redux";
 
 const ResumeBuilder = () => {
   const { resumeId } = useParams();

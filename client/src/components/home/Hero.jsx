@@ -136,7 +136,7 @@ const Hero = () => {
 
           <div className="flex gap-2">
             <Link
-              to="/app?state=register"
+              to="/login?state=register"
               className="hidden md:block px-6 py-2 bg-green-500 hover:bg-green-700 active:scale-95 transition-all rounded-full text-white"
               hidden={user}
             >
@@ -150,7 +150,7 @@ const Hero = () => {
               Login
             </Link>
             <Link
-              to="/app"
+              to="/login?state=register"
               className="hidden md:block px-8 py-2 bg-green-500
             hover:bg-green-700 active:scale-75 transition-all rounded-full text-white"
               hidden={!user}
@@ -195,8 +195,21 @@ const Hero = () => {
           </a>
           <button
             onClick={() => setMenuOpen(false)}
+            aria-label="Close menu"
             className="active:ring-3 active:ring-white aspect-square size-10 p-1 items-center justify-center bg-green-600 hover:bg-green-700 transition text-white rounded-md flex"
-          ></button>
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="22"
+              height="22"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Hero Section */}
