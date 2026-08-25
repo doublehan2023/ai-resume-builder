@@ -1,7 +1,9 @@
 import React from "react";
+import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 
 const Hero = () => {
+  const { user } = useSelector((state) => state.auth);
   const [menuOpen, setMenuOpen] = React.useState(false);
 
   const companiesLogo = [
@@ -136,14 +138,24 @@ const Hero = () => {
             <Link
               to="/app?state=register"
               className="hidden md:block px-6 py-2 bg-green-500 hover:bg-green-700 active:scale-95 transition-all rounded-full text-white"
+              hidden={user}
             >
               Get started
             </Link>
             <Link
               to="/app?state=login"
               className="hidden md:block px-6 py-2 border active:scale-95 hover:bg-slate-50 transition-all rounded-full text-slate-700 hover:text-slate-900"
+              hidden={user}
             >
               Login
+            </Link>
+            <Link
+              to="/app"
+              className="hidden md:block px-8 py-2 bg-green-500
+            hover:bg-green-700 active:scale-75 transition-all rounded-full text-white"
+              hidden={!user}
+            >
+              Dashboard
             </Link>
           </div>
 
@@ -184,8 +196,7 @@ const Hero = () => {
           <button
             onClick={() => setMenuOpen(false)}
             className="active:ring-3 active:ring-white aspect-square size-10 p-1 items-center justify-center bg-green-600 hover:bg-green-700 transition text-white rounded-md flex"
-          >
-          </button>
+          ></button>
         </div>
 
         {/* Hero Section */}
@@ -266,7 +277,7 @@ const Hero = () => {
           {/* CTA Buttons */}
           <div className="flex items-center gap-4 ">
             <Link
-              to='/app'
+              to="/app"
               className="bg-green-500 hover:bg-green-600 text-white rounded-full px-9 h-12 m-1 ring-offset-2 ring-1 ring-green-400 flex items-center transition-colors"
             >
               Get started
