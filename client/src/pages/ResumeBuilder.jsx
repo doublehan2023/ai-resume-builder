@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
-import { dummyResumeData } from "../assets/assets";
 import {
   ArrowLeftIcon,
   FileTextIcon,
@@ -15,6 +14,7 @@ import {
   EyeIcon,
   EyeOffIcon,
   DownloadIcon,
+  LoaderCircleIcon,
 } from "lucide-react";
 import PersonalInfoForm from "../components/PersonalInfoForm";
 import ResumePreview from "../components/ResumePreview";
@@ -26,9 +26,12 @@ import EducationForm from "../components/EducationForm";
 import ProjectForm from "../components/ProjectForm";
 import SkillsForm from "../components/SkillsForm";
 import { useSelector } from "react-redux";
+import api from "../configs/api";
+import toast from "react-hot-toast";
 
 const ResumeBuilder = () => {
   const { resumeId } = useParams();
+  const { token } = useSelector((state) => state.auth);
 
   const [resumeData, setResumeData] = useState({
     _id: "",
@@ -44,11 +47,17 @@ const ResumeBuilder = () => {
     public: false,
   });
 
+  const [isSaving, setIsSaving] = useState(false);
+
   const loadExistingResume = async () => {
-    const resume = dummyResumeData.find((resume) => resume._id === resumeId);
-    if (resume) {
-      setResumeData(resume);
-      document.title = resume.title;
+    try {
+      const { data } = await api.get(`/api/resumes/get/${resumeId}`, {
+        headers: { Authorization: token },
+      });
+      setResumeData(data.resume);
+      document.title = data.resume.title;
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error.message);
     }
   };
 
@@ -67,8 +76,44 @@ const ResumeBuilder = () => {
   const activeSection = sections[activeSectionIndex];
 
   useEffect(() => {
-    loadExistingResume();
-  }, []);
+    if (resumeId && token) loadExistingResume();
+  }, [resumeId, token]);
+
+  const saveChanges = async () => {
+    setIsSaving(true);
+    try {
+      const image = resumeData.personal_info?.image;
+      const hasNewImage = image instanceof File;
+      const resumeDataToSave = {
+        ...resumeData,
+        personal_info: { ...resumeData.personal_info },
+      };
+      delete resumeDataToSave._id;
+
+      let payload;
+      if (hasNewImage) {
+        // Files require multipart data; the remaining resume fields travel as JSON.
+        payload = new FormData();
+        payload.append("resumeId", resumeId);
+        payload.append("resumeData", JSON.stringify(resumeDataToSave));
+        payload.append("removeBackground", String(removeBackground));
+        payload.append("image", image);
+      } else {
+        payload = { resumeId, resumeData: resumeDataToSave };
+      }
+
+      const { data } = await api.put("/api/resumes/update", payload, {
+        headers: { Authorization: token },
+      });
+      setResumeData(data.resume);
+      document.title = data.resume.title;
+      toast.success(data.message);
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const changeResumeVisibility = async () => {
     setResumeData({ ...resumeData, public: !resumeData.public });
@@ -240,11 +285,21 @@ const ResumeBuilder = () => {
                 )}
               </div>
               <button
+                type="button"
+                onClick={saveChanges}
+                disabled={isSaving}
                 className="bg-linear-to-br  from-green-100 to-green-200 
               ring-green-300 text-green-600 ring hover:ring-green-400
-              transition-all rounded-md px-6 py-2 mt-6 text-sm"
+              transition-all rounded-md px-6 py-2 mt-6 text-sm disabled:opacity-60
+              disabled:cursor-not-allowed"
               >
-                Save Changes
+                {isSaving ? (
+                  <span className="inline-flex items-center gap-2">
+                    <LoaderCircleIcon className="size-4 animate-spin" /> Saving...
+                  </span>
+                ) : (
+                  "Save Changes"
+                )}
               </button>
             </div>
           </div>

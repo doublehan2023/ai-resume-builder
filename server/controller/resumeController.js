@@ -115,7 +115,16 @@ export const updateResume = async (req, res) => {
       return res.status(400).json({ message: "Resume ID is required" });
     }
 
-    let resumeDataCopy = JSON.parse(JSON.stringify(resumeData));
+    // `multipart/form-data` sends nested data as a JSON string, while a normal
+    // JSON request provides it as an object. Support both update paths.
+    const parsedResumeData =
+      typeof resumeData === "string" ? JSON.parse(resumeData) : resumeData;
+
+    if (!parsedResumeData || typeof parsedResumeData !== "object") {
+      return res.status(400).json({ message: "Resume data is required" });
+    }
+
+    let resumeDataCopy = JSON.parse(JSON.stringify(parsedResumeData));
 
     if (image) {
       const imageBufferData = await fs.readFile(image.path);
