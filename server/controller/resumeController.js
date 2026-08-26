@@ -1,6 +1,6 @@
 import ImageKit from "../configs/imageKit.js";
 import Resume from "../models/Resume.js";
-import fs from "fs/promises";
+import fs from "fs";
 
 // controller for creating a new resume
 // POST: /api/resumes/create
@@ -124,13 +124,18 @@ export const updateResume = async (req, res) => {
       return res.status(400).json({ message: "Resume data is required" });
     }
 
-    let resumeDataCopy = JSON.parse(JSON.stringify(parsedResumeData));
+    let resumeDataCopy;
+    if (typeof resumeData === 'string'){
+      resumeDataCopy = await JSON.parse(resumeData)
+    }else{
+      resumeDataCopy = structuredClone(resumeData)
+    }
 
     if (image) {
-      const imageBufferData = await fs.readFile(image.path);
-
       const response = await ImageKit.files.upload({
-        file: imageBufferData,
+        // ImageKit's v7 SDK accepts a file stream; passing a raw Buffer causes
+        // the SDK to serialize it as an object and ImageKit rejects it with 400.
+        file: fs.createReadStream(image.path),
         fileName: "resume.png",
         folder: "user-resumes",
         transformation: {
@@ -162,7 +167,7 @@ export const updateResume = async (req, res) => {
   } finally {
     // Multer stores uploads temporarily on disk; remove the file after use.
     if (image?.path) {
-      await fs.unlink(image.path).catch(() => {});
+      await fs.promises.unlink(image.path).catch(() => {});
     }
   }
 };

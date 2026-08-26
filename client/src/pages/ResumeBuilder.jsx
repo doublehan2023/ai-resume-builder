@@ -47,17 +47,18 @@ const ResumeBuilder = () => {
     public: false,
   });
 
-  const [isSaving, setIsSaving] = useState(false);
 
   const loadExistingResume = async () => {
     try {
-      const { data } = await api.get(`/api/resumes/get/${resumeId}`, {
+      const { data } = await api.get("/api/resumes/get/" + resumeId, {
         headers: { Authorization: token },
       });
-      setResumeData(data.resume);
-      document.title = data.resume.title;
+      if (data.resume) {
+        setResumeData(data.resume);
+        document.title = data.resume.title;
+      }
     } catch (error) {
-      toast.error(error?.response?.data?.message || error.message);
+      console.log(error.message);
     }
   };
 
@@ -79,44 +80,52 @@ const ResumeBuilder = () => {
     if (resumeId && token) loadExistingResume();
   }, [resumeId, token]);
 
-  const saveChanges = async () => {
-    setIsSaving(true);
+  const saveResume = async () => {
     try {
-      const image = resumeData.personal_info?.image;
-      const hasNewImage = image instanceof File;
-      const resumeDataToSave = {
-        ...resumeData,
-        personal_info: { ...resumeData.personal_info },
-      };
-      delete resumeDataToSave._id;
+      let updateResumeData = structuredClone(resumeData);
 
-      let payload;
-      if (hasNewImage) {
-        // Files require multipart data; the remaining resume fields travel as JSON.
-        payload = new FormData();
-        payload.append("resumeId", resumeId);
-        payload.append("resumeData", JSON.stringify(resumeDataToSave));
-        payload.append("removeBackground", String(removeBackground));
-        payload.append("image", image);
-      } else {
-        payload = { resumeId, resumeData: resumeDataToSave };
+      //remove image from updatedResumeData
+      if (typeof resumeData.personal_info.image === "object") {
+        delete updateResumeData.personal_info.image;
       }
 
-      const { data } = await api.put("/api/resumes/update", payload, {
+      const formData = new FormData();
+      formData.append("resumeId", resumeId);
+      formData.append("resumeData", JSON.stringify(updateResumeData));
+      removeBackground && formData.append("removeBackground", "true");
+      typeof resumeData.personal_info.image === "object" &&
+        formData.append("image", resumeData.personal_info.image);
+
+      const { data } = await api.put("/api/resumes/update", formData, {
         headers: { Authorization: token },
       });
+
       setResumeData(data.resume);
-      document.title = data.resume.title;
       toast.success(data.message);
     } catch (error) {
-      toast.error(error?.response?.data?.message || error.message);
-    } finally {
-      setIsSaving(false);
+      console.error("Error saving resume:", error);
+      toast.error(error?.response?.data?.message || "Unable to save resume");
     }
   };
 
   const changeResumeVisibility = async () => {
-    setResumeData({ ...resumeData, public: !resumeData.public });
+    try {
+      const formData = new FormData();
+      formData.append("resumeId", resumeId);
+      formData.append(
+        "resumeData",
+        JSON.stringify({ public: !resumeData.public }),
+      );
+
+      const { data } = await api.put("/api/resumes/update", formData, {
+        headers: { Authorization: token },
+      });
+
+      setResumeData({ ...resumeData, public: !resumeData.public });
+      toast.success(data.message);
+    } catch (error) {
+      console.error("Error saving resume:", error);
+    }
   };
 
   const handleShare = () => {
@@ -286,20 +295,12 @@ const ResumeBuilder = () => {
               </div>
               <button
                 type="button"
-                onClick={saveChanges}
-                disabled={isSaving}
+                onClick={saveResume}
                 className="bg-linear-to-br  from-green-100 to-green-200 
               ring-green-300 text-green-600 ring hover:ring-green-400
-              transition-all rounded-md px-6 py-2 mt-6 text-sm disabled:opacity-60
-              disabled:cursor-not-allowed"
+              transition-all rounded-md px-6 py-2 mt-6 text-sm"
               >
-                {isSaving ? (
-                  <span className="inline-flex items-center gap-2">
-                    <LoaderCircleIcon className="size-4 animate-spin" /> Saving...
-                  </span>
-                ) : (
-                  "Save Changes"
-                )}
+                Save Changes
               </button>
             </div>
           </div>
