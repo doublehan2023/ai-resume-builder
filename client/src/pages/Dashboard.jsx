@@ -73,7 +73,7 @@ const Dashboard = () => {
       setShowUploadResume(false);
       navigate(`/app/builder/${data.resumeId}`);
     } catch (error) {
-      toast.error(error?.resume?.data?.message || error.message);
+      toast.error(error?.response?.data?.message || error.message);
     }
     setIsLoading(false);
   };
@@ -325,7 +325,7 @@ const Dashboard = () => {
                 disabled={isLoading}
                 className="w-full py-2 bg-green-600 text-white rounded
               hover:bg-green-700 transition-colors flex items-center justify-center
-              gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+              gap-2"
               >
                 {isLoading && (
                   <LoaderCircleIcon className="animate-spin size-4" />
@@ -340,7 +340,7 @@ const Dashboard = () => {
                   setTitle("");
                 }}
               />
-            </div>
+            </div> 
           </form>
         )}
 
