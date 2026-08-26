@@ -340,7 +340,7 @@ const Dashboard = () => {
                   setTitle("");
                 }}
               />
-            </div> 
+            </div>
           </form>
         )}
 
