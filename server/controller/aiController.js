@@ -30,8 +30,19 @@ export const enhanceProfessionalSummary = async (req, res) => {
 
     return res.status(200).json({ enhancedContent });
   } catch (error) {
-    const status = error?.status === 429 ? 429 : 502;
-    return res.status(status).json({ message: "Unable to enhance summary" });
+    if (error?.status === 429) {
+      return res
+        .status(429)
+        .json({ message: "AI rate limit reached. Please try again shortly." });
+    }
+
+    if (error?.status === 503) {
+      return res.status(503).json({
+        message: "AI service is temporarily busy. Please try again in a moment.",
+      });
+    }
+
+    return res.status(502).json({ message: "Unable to enhance summary" });
   }
 };
 
