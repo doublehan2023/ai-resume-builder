@@ -20,6 +20,10 @@ app.use("/api/ai", aiRouter);
 app.get("/", (req, res) => res.send("Server is live..."));
 app.use("/api/user", userRouter);
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
+
+export default app;
