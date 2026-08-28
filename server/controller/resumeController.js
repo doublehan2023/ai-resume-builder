@@ -1,4 +1,4 @@
-import ImageKit from "../configs/imageKit.js";
+import getImageKit from "../configs/imageKit.js";
 import Resume from "../models/Resume.js";
 import fs from "fs";
 
@@ -132,7 +132,7 @@ export const updateResume = async (req, res) => {
     }
 
     if (image) {
-      const response = await ImageKit.files.upload({
+      const response = await getImageKit().files.upload({
         // ImageKit's v7 SDK accepts a file stream; passing a raw Buffer causes
         // the SDK to serialize it as an object and ImageKit rejects it with 400.
         file: fs.createReadStream(image.path),

@@ -1,4 +1,4 @@
-import ai from "../configs/ai.js";
+import getAI from "../configs/ai.js";
 import Resume from "../models/Resume.js";
 
 // controller for enhancing a resume's professional summary
@@ -11,7 +11,7 @@ export const enhanceProfessionalSummary = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const response = await ai.chat.completions.create({
+    const response = await getAI().chat.completions.create({
       model: process.env.OPENAI_MODEL,
       messages: [
         {
@@ -56,7 +56,7 @@ export const enhanceJobDescription = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const response = await ai.chat.completions.create({
+    const response = await getAI().chat.completions.create({
       model: process.env.OPENAI_MODEL,
       messages: [
         {
@@ -137,7 +137,7 @@ export const uploadResume = async (req, res) => {
           },
      ],
   }`;
-    const response = await ai.chat.completions.create({
+    const response = await getAI().chat.completions.create({
       model: process.env.OPENAI_MODEL,
       messages: [
         {
