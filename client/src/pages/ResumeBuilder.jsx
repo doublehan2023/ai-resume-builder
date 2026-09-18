@@ -28,6 +28,7 @@ import SkillsForm from "../components/SkillsForm";
 import { useSelector } from "react-redux";
 import api from "../configs/api";
 import toast from "react-hot-toast";
+import { isValidProjectLink } from "../utils/projectLinks";
 
 const ResumeBuilder = () => {
   const { resumeId } = useParams();
@@ -81,6 +82,15 @@ const ResumeBuilder = () => {
   }, [resumeId, token]);
 
   const saveResume = async () => {
+    const hasInvalidProjectLink = resumeData.project?.some(
+      (project) => project.link && !isValidProjectLink(project.link),
+    );
+
+    if (hasInvalidProjectLink) {
+      toast.error("Project links must begin with http:// or https://.");
+      return;
+    }
+
     try {
       let updateResumeData = structuredClone(resumeData);
 

@@ -1,4 +1,6 @@
 
+import { isValidProjectLink } from "../../utils/projectLinks";
+
 const MinimalTemplate = ({ data, accentColor }) => {
     const formatDate = (dateStr) => {
         if (!dateStr) return "";
@@ -77,7 +79,11 @@ const MinimalTemplate = ({ data, accentColor }) => {
                     <div className="space-y-4">
                         {data.project.map((proj, index) => (
                             <div key={index} className="flex flex-col gap-2 justify-between items-baseline">
-                                <h3 className="text-lg font-medium ">{proj.name}</h3>
+                                <h3 className="text-lg font-medium ">
+                                    {isValidProjectLink(proj.link) ? (
+                                        <a href={proj.link} target="_blank" rel="noreferrer" className="hover:underline">{proj.name}</a>
+                                    ) : proj.name}
+                                </h3>
                                 <p className="text-gray-600">{proj.description}</p>
                             </div>
                         ))}

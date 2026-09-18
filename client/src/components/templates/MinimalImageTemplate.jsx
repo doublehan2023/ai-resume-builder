@@ -1,4 +1,5 @@
 import { Mail, Phone, MapPin } from "lucide-react";
+import { isValidProjectLink } from "../../utils/projectLinks";
 
 const MinimalImageTemplate = ({ data, accentColor }) => {
     const formatDate = (dateStr) => {
@@ -163,7 +164,11 @@ const MinimalImageTemplate = ({ data, accentColor }) => {
                             <div className="space-y-4">
                                 {data.project.map((project, index) => (
                                     <div key={index}>
-                                        <h3 className="text-md font-medium text-zinc-800 mt-3">{project.name}</h3>
+                                        <h3 className="text-md font-medium text-zinc-800 mt-3">
+                                            {isValidProjectLink(project.link) ? (
+                                                <a href={project.link} target="_blank" rel="noreferrer" className="hover:underline">{project.name}</a>
+                                            ) : project.name}
+                                        </h3>
                                         <p className="text-sm mb-1" style={{ color: accentColor }} >
                                             {project.type}
                                         </p>

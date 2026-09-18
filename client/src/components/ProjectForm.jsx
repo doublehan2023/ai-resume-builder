@@ -1,10 +1,12 @@
 import { Plus, Trash } from "lucide-react";
+import { isValidProjectLink } from "../utils/projectLinks";
 
 const ProjectForm = ({ data = [], onChange }) => {
   const addProject = () => {
     const newProject = {
       name: "",
       type: "",
+      link: "",
       description: "",
     };
     onChange([...data, newProject]);
@@ -78,6 +80,28 @@ const ProjectForm = ({ data = [], onChange }) => {
                 placeholder="Project Type"
                 className="px-3 py-2 text-sm rounded-lg"
               />
+              <div>
+                <label
+                  htmlFor={`project-link-${index}`}
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Project Link
+                </label>
+                <input
+                  id={`project-link-${index}`}
+                  value={project.link || ""}
+                  onChange={(e) => updateProject(index, "link", e.target.value)}
+                  type="url"
+                  placeholder="https://github.com/you/project"
+                  aria-invalid={Boolean(project.link) && !isValidProjectLink(project.link)}
+                  className="w-full px-3 py-2 text-sm rounded-lg"
+                />
+                {project.link && !isValidProjectLink(project.link) && (
+                  <p className="mt-1 text-xs text-red-600" role="alert">
+                    Enter a complete URL beginning with http:// or https://.
+                  </p>
+                )}
+              </div>
 
               <textarea
                 rows={4}
