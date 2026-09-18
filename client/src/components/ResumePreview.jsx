@@ -2,6 +2,7 @@ import ClassicTemplate from "./templates/ClassicTemplate";
 import MinimalImageTemplate from "./templates/MinimalImageTemplate";
 import MinimalTemplate from "./templates/MinimalTemplate";
 import ModernTemplate from "./templates/ModernTemplate";
+import TechTemplate from "./templates/TechTemplate";
 
 const ResumePreview = ({ data, template, accentColor, classes = "" }) => {
   const renderTemplate = () => {
@@ -14,6 +15,8 @@ const ResumePreview = ({ data, template, accentColor, classes = "" }) => {
         return <MinimalTemplate {...templateProps} />;
       case "minimal-image":
         return <MinimalImageTemplate {...templateProps} />;
+      case "tech":
+        return <TechTemplate {...templateProps} />;
       default:
         return <ClassicTemplate {...templateProps} />;
     }
