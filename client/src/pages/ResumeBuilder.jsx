@@ -68,8 +68,8 @@ const ResumeBuilder = () => {
   const sections = [
     { id: "personal", name: "Personal Info", icon: UserIcon },
     { id: "summary", name: "Summary", icon: FileTextIcon },
-    { id: "experience", name: "Experience", icon: BriefcaseIcon },
     { id: "education", name: "Education", icon: GraduationCapIcon },
+    { id: "experience", name: "Experience", icon: BriefcaseIcon },
     { id: "projects", name: "Projects", icon: FolderIcon },
     { id: "skills", name: "Skills", icon: Sparkles },
   ];

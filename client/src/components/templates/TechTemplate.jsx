@@ -57,6 +57,34 @@ const TechTemplate = ({ data, accentColor }) => {
         </section>
       )}
 
+      {data.education?.length > 0 && (
+        <section className="mb-6">
+          <SectionHeading accentColor={accentColor}>Education</SectionHeading>
+          <div className="space-y-3">
+            {data.education.map((education, index) => (
+              <div
+                className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between"
+                key={`${education.institution}-${education.degree}-${index}`}
+              >
+                <div>
+                  <h3 className="font-bold text-slate-950">
+                    {education.degree}
+                    {education.field && ` in ${education.field}`}
+                  </h3>
+                  {education.institution && <p className="text-slate-700">{education.institution}</p>}
+                  {education.gpa && <p className="text-xs text-slate-500">GPA: {education.gpa}</p>}
+                </div>
+                {education.graduation_date && (
+                  <p className="shrink-0 text-xs font-medium text-slate-500">
+                    {formatDate(education.graduation_date)}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {data.experience?.length > 0 && (
         <section className="mb-6">
           <SectionHeading accentColor={accentColor}>Experience</SectionHeading>
@@ -119,33 +147,6 @@ const TechTemplate = ({ data, accentColor }) => {
         </section>
       )}
 
-      {data.education?.length > 0 && (
-        <section>
-          <SectionHeading accentColor={accentColor}>Education</SectionHeading>
-          <div className="space-y-3">
-            {data.education.map((education, index) => (
-              <div
-                className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between"
-                key={`${education.institution}-${education.degree}-${index}`}
-              >
-                <div>
-                  <h3 className="font-bold text-slate-950">
-                    {education.degree}
-                    {education.field && ` in ${education.field}`}
-                  </h3>
-                  {education.institution && <p className="text-slate-700">{education.institution}</p>}
-                  {education.gpa && <p className="text-xs text-slate-500">GPA: {education.gpa}</p>}
-                </div>
-                {education.graduation_date && (
-                  <p className="shrink-0 text-xs font-medium text-slate-500">
-                    {formatDate(education.graduation_date)}
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </article>
   );
 };
