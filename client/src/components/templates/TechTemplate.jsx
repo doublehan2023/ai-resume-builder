@@ -1,3 +1,5 @@
+import { isValidProjectLink } from "../../utils/projectLinks";
+
 const SectionHeading = ({ children, accentColor }) => (
   <h2
     className="mb-3 border-b pb-1.5 text-xs font-bold uppercase tracking-[0.18em]"
@@ -126,7 +128,13 @@ const TechTemplate = ({ data, accentColor }) => {
             {data.project.map((project, index) => (
               <div key={`${project.name}-${index}`}>
                 <div className="flex flex-wrap items-baseline gap-x-2">
-                  <h3 className="font-bold text-slate-950">{project.name}</h3>
+                  <h3 className="font-bold text-slate-950">
+                    {isValidProjectLink(project.link) ? (
+                      <a href={project.link} target="_blank" rel="noreferrer" className="hover:underline">
+                        {project.name}
+                      </a>
+                    ) : project.name}
+                  </h3>
                   {project.type && <span className="text-xs text-slate-500">{project.type}</span>}
                 </div>
                 {project.description && (

@@ -33,6 +33,7 @@ const ResumeSchema = new mongoose.Schema(
       {
         name: { type: String },
         type: { type: String },
+        link: { type: String },
         description: { type: String },
       },
     ],

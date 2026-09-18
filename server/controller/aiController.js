@@ -94,7 +94,7 @@ export const uploadResume = async (req, res) => {
     }
 
     const systemPrompt =
-      "Extract resume data into a JSON object. Return only JSON with these fields: title (string), public (boolean), accent_color (string), professional_summary (string), skills (string array), personal_info ({ image, full_name, profession, email, phone, location, linkedin, website }), experience ({ company, position, start_date, end_date, description, is_current } array), project ({ name, type, description } array), and education ({ institution, degree, field, graduation_date, gpa } array). Omit information not present in the resume and never invent facts.";
+      "Extract resume data into a JSON object. Return only JSON with these fields: title (string), public (boolean), accent_color (string), professional_summary (string), skills (string array), personal_info ({ image, full_name, profession, email, phone, location, linkedin, website }), experience ({ company, position, start_date, end_date, description, is_current } array), project ({ name, type, link, description } array), and education ({ institution, degree, field, graduation_date, gpa } array). Extract a project link only when it is explicitly present in the resume; never invent one. Omit information not present in the resume and never invent facts.";
     const userPrompt = `extract data from this resume: ${resumeText}
     Provide data in the following JSON format with no additional text before or after:
     {
@@ -124,6 +124,7 @@ export const uploadResume = async (req, res) => {
           {
           name: { type: String },
           type: { type: String },
+          link: { type: String },
           description: { type: String },
           },
      ],

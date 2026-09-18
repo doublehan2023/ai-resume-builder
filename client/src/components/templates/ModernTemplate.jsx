@@ -1,4 +1,5 @@
 import { Mail, Phone, MapPin, LinkIcon, Globe } from "lucide-react";
+import { isValidProjectLink } from "../../utils/projectLinks";
 
 const ModernTemplate = ({ data, accentColor }) => {
 	const formatDate = (dateStr) => {
@@ -108,7 +109,11 @@ const ModernTemplate = ({ data, accentColor }) => {
 
 									<div className="flex justify-between items-start">
 										<div>
-											<h3 className="text-lg font-medium text-gray-900">{p.name}</h3>
+											<h3 className="text-lg font-medium text-gray-900">
+												{isValidProjectLink(p.link) ? (
+													<a href={p.link} target="_blank" rel="noreferrer" className="hover:underline">{p.name}</a>
+												) : p.name}
+											</h3>
 										</div>
 									</div>
 									{p.description && (
