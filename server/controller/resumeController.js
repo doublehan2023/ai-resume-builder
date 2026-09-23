@@ -1,6 +1,10 @@
 import getImageKit from "../configs/imageKit.js";
 import Resume from "../models/Resume.js";
 import fs from "fs";
+import {
+  buildResumeUpdate,
+  ResumeUpdateValidationError,
+} from "../utils/resumeUpdate.js";
 
 // controller for creating a new resume
 // POST: /api/resumes/create
@@ -124,12 +128,7 @@ export const updateResume = async (req, res) => {
       return res.status(400).json({ message: "Resume data is required" });
     }
 
-    let resumeDataCopy;
-    if (typeof resumeData === 'string'){
-      resumeDataCopy = await JSON.parse(resumeData)
-    }else{
-      resumeDataCopy = structuredClone(resumeData)
-    }
+    let imageUrl;
 
     if (image) {
       const response = await getImageKit().files.upload({
@@ -145,12 +144,16 @@ export const updateResume = async (req, res) => {
         },
       });
 
-      resumeDataCopy.personal_info.image = response.url;
+      imageUrl = response.url;
     }
+
+    // Never pass a client-controlled document directly to MongoDB. This keeps
+    // ownership and other internal fields outside the update surface.
+    const allowedUpdate = buildResumeUpdate(parsedResumeData, { imageUrl });
 
     const resume = await Resume.findOneAndUpdate(
       { _id: resumeId, userId },
-      resumeDataCopy,
+      { $set: allowedUpdate },
       { new: true, runValidators: true },
     );
 
@@ -163,6 +166,9 @@ export const updateResume = async (req, res) => {
       resume,
     });
   } catch (error) {
+    if (error instanceof ResumeUpdateValidationError) {
+      return res.status(400).json({ message: error.message });
+    }
     return res.status(400).json({ message: error.message });
   } finally {
     // Multer stores uploads temporarily on disk; remove the file after use.
