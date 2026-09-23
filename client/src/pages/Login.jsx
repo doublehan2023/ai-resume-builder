@@ -68,11 +68,11 @@ const Login = () => {
                     <input type="password" name="password" placeholder="Password" className="w-full bg-transparent text-white placeholder-white/60 border-none outline-none" value={formData.password} onChange={handleChange} required />
                 </div>
 
-                <div className="mt-4 text-left">
-                    <button className="text-sm text-green-400 hover:underline">
+                {state === "login" && <div className="mt-4 text-left">
+                    <button type="button" onClick={() => navigate('/forgot-password')} className="text-sm text-green-400 hover:underline">
                         Forget password?
                     </button>
-                </div>
+                </div>}
 
                 <button type="submit" className="mt-2 w-full h-11 rounded-full text-white bg-green-600 hover:bg-green-500 transition " >
                     {state === "login" ? "Login" : "Sign up"}
