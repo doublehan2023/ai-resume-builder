@@ -1,6 +1,10 @@
 import getImageKit from "../configs/imageKit.js";
 import Resume from "../models/Resume.js";
 import fs from "fs";
+import {
+  buildResumeUpdate,
+  ResumeUpdateValidationError,
+} from "../utils/resumeUpdate.js";
 
 // controller for creating a new resume
 // POST: /api/resumes/create
@@ -124,12 +128,18 @@ export const updateResume = async (req, res) => {
       return res.status(400).json({ message: "Resume data is required" });
     }
 
-    let resumeDataCopy;
-    if (typeof resumeData === 'string'){
-      resumeDataCopy = await JSON.parse(resumeData)
-    }else{
-      resumeDataCopy = structuredClone(resumeData)
+    // Validate before any external side effect. This also prevents malformed
+    // requests from creating ImageKit assets.
+    const allowedUpdate = buildResumeUpdate(parsedResumeData, { allowEmpty: Boolean(image) });
+
+    // Verify ownership before processing an upload so another user cannot use
+    // an arbitrary resume ID to create orphaned remote files.
+    const ownedResume = await Resume.exists({ _id: resumeId, userId });
+    if (!ownedResume) {
+      return res.status(404).json({ message: "Resume not found" });
     }
+
+    let imageUrl;
 
     if (image) {
       const response = await getImageKit().files.upload({
@@ -145,12 +155,14 @@ export const updateResume = async (req, res) => {
         },
       });
 
-      resumeDataCopy.personal_info.image = response.url;
+      imageUrl = response.url;
     }
+
+    if (imageUrl) allowedUpdate["personal_info.image"] = imageUrl;
 
     const resume = await Resume.findOneAndUpdate(
       { _id: resumeId, userId },
-      resumeDataCopy,
+      { $set: allowedUpdate },
       { new: true, runValidators: true },
     );
 
@@ -163,6 +175,12 @@ export const updateResume = async (req, res) => {
       resume,
     });
   } catch (error) {
+    if (error instanceof ResumeUpdateValidationError) {
+      return res.status(400).json({ message: error.message });
+    }
+    if (error instanceof SyntaxError) {
+      return res.status(400).json({ message: "resumeData must be valid JSON" });
+    }
     return res.status(400).json({ message: error.message });
   } finally {
     // Multer stores uploads temporarily on disk; remove the file after use.
