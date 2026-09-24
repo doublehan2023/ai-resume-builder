@@ -128,6 +128,17 @@ export const updateResume = async (req, res) => {
       return res.status(400).json({ message: "Resume data is required" });
     }
 
+    // Validate before any external side effect. This also prevents malformed
+    // requests from creating ImageKit assets.
+    const allowedUpdate = buildResumeUpdate(parsedResumeData, { allowEmpty: Boolean(image) });
+
+    // Verify ownership before processing an upload so another user cannot use
+    // an arbitrary resume ID to create orphaned remote files.
+    const ownedResume = await Resume.exists({ _id: resumeId, userId });
+    if (!ownedResume) {
+      return res.status(404).json({ message: "Resume not found" });
+    }
+
     let imageUrl;
 
     if (image) {
@@ -147,9 +158,7 @@ export const updateResume = async (req, res) => {
       imageUrl = response.url;
     }
 
-    // Never pass a client-controlled document directly to MongoDB. This keeps
-    // ownership and other internal fields outside the update surface.
-    const allowedUpdate = buildResumeUpdate(parsedResumeData, { imageUrl });
+    if (imageUrl) allowedUpdate["personal_info.image"] = imageUrl;
 
     const resume = await Resume.findOneAndUpdate(
       { _id: resumeId, userId },
@@ -168,6 +177,9 @@ export const updateResume = async (req, res) => {
   } catch (error) {
     if (error instanceof ResumeUpdateValidationError) {
       return res.status(400).json({ message: error.message });
+    }
+    if (error instanceof SyntaxError) {
+      return res.status(400).json({ message: "resumeData must be valid JSON" });
     }
     return res.status(400).json({ message: error.message });
   } finally {

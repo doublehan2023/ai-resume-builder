@@ -1,28 +1,73 @@
-const editableFields = new Set([
-  "title",
-  "public",
-  "template",
-  "accent_color",
-  "professional_summary",
-  "skills",
-  "personal_info",
-  "experience",
-  "project",
-  "education",
-]);
+import { z } from "zod";
 
-const serverManagedFields = new Set([
-  "_id",
-  "id",
-  "userId",
-  "createdAt",
-  "updatedAt",
-  "__v",
-]);
+const serverManagedFields = {
+  _id: z.unknown().optional(),
+  id: z.unknown().optional(),
+  userId: z.unknown().optional(),
+  createdAt: z.unknown().optional(),
+  updatedAt: z.unknown().optional(),
+  __v: z.unknown().optional(),
+};
 
-const templateNames = new Set(["classic", "modern", "minimal", "minimal-image"]);
-const accentColorPattern = /^#[0-9a-fA-F]{6}$/;
-const monthPattern = /^\d{4}-(0[1-9]|1[0-2])$/;
+const text = (max = 10_000) => z.string().trim().max(max);
+const month = z.string().regex(/^$|^\d{4}-(0[1-9]|1[0-2])$/, {
+  message: "must use YYYY-MM format",
+});
+
+const personalInfoSchema = z.object({
+  ...serverManagedFields,
+  // Accepted for a full editor save, but never persisted from the client.
+  image: text(2_048).optional(),
+  full_name: text(200).optional(),
+  profession: text(200).optional(),
+  email: text(320).optional(),
+  phone: text(50).optional(),
+  location: text(200).optional(),
+  linkedin: text(2_048).optional(),
+  website: text(2_048).optional(),
+}).strict();
+
+const experienceSchema = z.object({
+  ...serverManagedFields,
+  company: text(200).optional(),
+  position: text(200).optional(),
+  start_date: month.optional(),
+  end_date: month.optional(),
+  description: text().optional(),
+  is_current: z.boolean().optional().default(false),
+}).strict();
+
+const projectSchema = z.object({
+  ...serverManagedFields,
+  name: text(200).optional(),
+  type: text(200).optional(),
+  description: text().optional(),
+}).strict();
+
+const educationSchema = z.object({
+  ...serverManagedFields,
+  institution: text(300).optional(),
+  degree: text(300).optional(),
+  field: text(300).optional(),
+  graduation_date: month.optional(),
+  gpa: text(30).optional(),
+}).strict();
+
+const resumeUpdateSchema = z.object({
+  ...serverManagedFields,
+  title: text(200).optional(),
+  public: z.boolean().optional(),
+  template: z.enum(["classic", "modern", "minimal", "minimal-image"]).optional(),
+  accent_color: z.string().regex(/^#[0-9a-fA-F]{6}$/, {
+    message: "must be a six-digit hex color",
+  }).optional(),
+  professional_summary: text().optional(),
+  skills: z.array(text(200)).max(100).optional(),
+  personal_info: personalInfoSchema.optional(),
+  experience: z.array(experienceSchema).max(100).optional(),
+  project: z.array(projectSchema).max(100).optional(),
+  education: z.array(educationSchema).max(100).optional(),
+}).strict();
 
 export class ResumeUpdateValidationError extends Error {}
 
@@ -30,149 +75,49 @@ const fail = (message) => {
   throw new ResumeUpdateValidationError(message);
 };
 
-const isPlainObject = (value) =>
-  value !== null && typeof value === "object" && !Array.isArray(value);
+const parseUpdate = (payload) => {
+  const result = resumeUpdateSchema.safeParse(payload);
+  if (result.success) return result.data;
 
-const validateKeys = (value, allowedKeys, path) => {
-  for (const key of Object.keys(value)) {
-    if (serverManagedFields.has(key)) continue;
-    if (!allowedKeys.has(key)) fail(`Unsupported field: ${path}.${key}`);
-  }
-};
-
-const stringValue = (value, path) => {
-  if (typeof value !== "string") fail(`${path} must be a string`);
-  return value.trim();
-};
-
-const monthValue = (value, path) => {
-  const normalized = stringValue(value, path);
-  if (normalized && !monthPattern.test(normalized)) {
-    fail(`${path} must use YYYY-MM format`);
-  }
-  return normalized;
-};
-
-const objectUpdate = (value, fields, path) => {
-  if (!isPlainObject(value)) fail(`${path} must be an object`);
-  const allowedFields = new Set(fields);
-  validateKeys(value, allowedFields, path);
-
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([key]) => !serverManagedFields.has(key))
-      .map(([key, entry]) => [key, stringValue(entry, `${path}.${key}`)]),
-  );
-};
-
-const arrayUpdate = (value, fields, path, normalizeEntry) => {
-  if (!Array.isArray(value)) fail(`${path} must be an array`);
-  return value.map((entry, index) => {
-    if (!isPlainObject(entry)) fail(`${path}[${index}] must be an object`);
-    validateKeys(entry, new Set(fields), `${path}[${index}]`);
-    return normalizeEntry(entry, index);
-  });
+  const issue = result.error.issues[0];
+  const path = issue.path.length ? issue.path.join(".") : "resumeData";
+  fail(`${path}: ${issue.message}`);
 };
 
 /**
- * Converts a client resume payload into a MongoDB $set document. Database
- * metadata is deliberately ignored so a normal editor save can include the
- * Mongoose fields it received while a tampered request cannot persist them.
+ * Converts a validated client payload to a MongoDB $set document. Server-owned
+ * metadata and client-provided image URLs never enter the persistence surface.
  */
-export const buildResumeUpdate = (payload, { imageUrl } = {}) => {
-  if (!isPlainObject(payload)) fail("Resume data must be an object");
-
-  for (const key of Object.keys(payload)) {
-    if (serverManagedFields.has(key)) continue;
-    if (!editableFields.has(key)) fail(`Unsupported field: ${key}`);
-  }
-
+export const buildResumeUpdate = (payload, { imageUrl, allowEmpty = false } = {}) => {
+  const data = parseUpdate(payload);
   const update = {};
 
-  if ("title" in payload) update.title = stringValue(payload.title, "title");
-  if ("public" in payload) {
-    if (typeof payload.public !== "boolean") fail("public must be a boolean");
-    update.public = payload.public;
+  for (const field of [
+    "title",
+    "public",
+    "template",
+    "accent_color",
+    "professional_summary",
+    "skills",
+    "experience",
+    "project",
+    "education",
+  ]) {
+    if (data[field] !== undefined) update[field] = data[field];
   }
-  if ("template" in payload) {
-    const template = stringValue(payload.template, "template");
-    if (!templateNames.has(template)) fail("template is invalid");
-    update.template = template;
-  }
-  if ("accent_color" in payload) {
-    const color = stringValue(payload.accent_color, "accent_color");
-    if (!accentColorPattern.test(color)) fail("accent_color must be a hex color");
-    update.accent_color = color;
-  }
-  if ("professional_summary" in payload) {
-    update.professional_summary = stringValue(
-      payload.professional_summary,
-      "professional_summary",
-    );
-  }
-  if ("skills" in payload) {
-    if (!Array.isArray(payload.skills)) fail("skills must be an array");
-    update.skills = payload.skills.map((skill, index) =>
-      stringValue(skill, `skills[${index}]`),
-    );
-  }
-  if ("personal_info" in payload) {
-    const personalInfo = objectUpdate(
-      payload.personal_info,
-      ["image", "full_name", "profession", "email", "phone", "location", "linkedin", "website"],
-      "personal_info",
-    );
-    for (const [key, value] of Object.entries(personalInfo)) {
-      update[`personal_info.${key}`] = value;
+
+  if (data.personal_info) {
+    for (const [key, value] of Object.entries(data.personal_info)) {
+      if (key !== "image" && !(key in serverManagedFields) && value !== undefined) {
+        update[`personal_info.${key}`] = value;
+      }
     }
-  }
-  if ("experience" in payload) {
-    update.experience = arrayUpdate(
-      payload.experience,
-      ["company", "position", "start_date", "end_date", "description", "is_current"],
-      "experience",
-      (entry, index) => ({
-        company: stringValue(entry.company ?? "", `experience[${index}].company`),
-        position: stringValue(entry.position ?? "", `experience[${index}].position`),
-        start_date: monthValue(entry.start_date ?? "", `experience[${index}].start_date`),
-        end_date: monthValue(entry.end_date ?? "", `experience[${index}].end_date`),
-        description: stringValue(entry.description ?? "", `experience[${index}].description`),
-        is_current: typeof entry.is_current === "boolean" ? entry.is_current : false,
-      }),
-    );
-  }
-  if ("project" in payload) {
-    update.project = arrayUpdate(
-      payload.project,
-      ["name", "type", "description"],
-      "project",
-      (entry, index) => ({
-        name: stringValue(entry.name ?? "", `project[${index}].name`),
-        type: stringValue(entry.type ?? "", `project[${index}].type`),
-        description: stringValue(entry.description ?? "", `project[${index}].description`),
-      }),
-    );
-  }
-  if ("education" in payload) {
-    update.education = arrayUpdate(
-      payload.education,
-      ["institution", "degree", "field", "graduation_date", "gpa"],
-      "education",
-      (entry, index) => ({
-        institution: stringValue(entry.institution ?? "", `education[${index}].institution`),
-        degree: stringValue(entry.degree ?? "", `education[${index}].degree`),
-        field: stringValue(entry.field ?? "", `education[${index}].field`),
-        graduation_date: monthValue(
-          entry.graduation_date ?? "",
-          `education[${index}].graduation_date`,
-        ),
-        gpa: stringValue(entry.gpa ?? "", `education[${index}].gpa`),
-      }),
-    );
   }
 
   if (imageUrl) update["personal_info.image"] = imageUrl;
-  if (Object.keys(update).length === 0) fail("No editable resume fields were provided");
+  if (Object.keys(update).length === 0 && !allowEmpty) {
+    fail("No editable resume fields were provided");
+  }
 
   return update;
 };
