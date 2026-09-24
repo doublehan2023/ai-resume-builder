@@ -84,6 +84,14 @@ const parseUpdate = (payload) => {
   fail(`${path}: ${issue.message}`);
 };
 
+const sanitizeNestedObject = (value, excludedFields = []) =>
+  Object.fromEntries(
+    Object.entries(value).filter(
+      ([key, entry]) =>
+        !(key in serverManagedFields) && !excludedFields.includes(key) && entry !== undefined,
+    ),
+  );
+
 /**
  * Converts a validated client payload to a MongoDB $set document. Server-owned
  * metadata and client-provided image URLs never enter the persistence surface.
@@ -99,18 +107,21 @@ export const buildResumeUpdate = (payload, { imageUrl, allowEmpty = false } = {}
     "accent_color",
     "professional_summary",
     "skills",
-    "experience",
-    "project",
-    "education",
   ]) {
     if (data[field] !== undefined) update[field] = data[field];
   }
 
+  for (const field of ["experience", "project", "education"]) {
+    if (data[field] !== undefined) {
+      update[field] = data[field].map((entry) => sanitizeNestedObject(entry));
+    }
+  }
+
   if (data.personal_info) {
-    for (const [key, value] of Object.entries(data.personal_info)) {
-      if (key !== "image" && !(key in serverManagedFields) && value !== undefined) {
-        update[`personal_info.${key}`] = value;
-      }
+    for (const [key, value] of Object.entries(
+      sanitizeNestedObject(data.personal_info, ["image"]),
+    )) {
+      update[`personal_info.${key}`] = value;
     }
   }
 
