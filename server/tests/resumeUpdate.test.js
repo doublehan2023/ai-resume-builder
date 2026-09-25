@@ -45,6 +45,29 @@ test("does not persist a client-supplied image URL", () => {
   );
 });
 
+test("strips server-managed metadata from nested collection entries", () => {
+  const protectedFields = {
+    _id: "attacker-id",
+    id: "attacker-id",
+    userId: "attacker-user-id",
+    createdAt: "2026-01-01",
+    updatedAt: "2026-01-02",
+    __v: 99,
+  };
+
+  const update = buildResumeUpdate({
+    experience: [{ ...protectedFields, company: "Acme", position: "Engineer" }],
+    project: [{ ...protectedFields, name: "Portfolio" }],
+    education: [{ ...protectedFields, institution: "University" }],
+  });
+
+  assert.deepEqual(update, {
+    experience: [{ company: "Acme", position: "Engineer", is_current: false }],
+    project: [{ name: "Portfolio" }],
+    education: [{ institution: "University" }],
+  });
+});
+
 test("adds an uploaded image only at the allowed path", () => {
   assert.deepEqual(
     buildResumeUpdate({ title: "Resume" }, { imageUrl: "https://cdn/image.png" }),
