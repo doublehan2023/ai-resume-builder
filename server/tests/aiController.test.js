@@ -7,7 +7,7 @@ import {
   getAiExecutionHttpError,
   uploadResume,
 } from "../controller/aiController.js";
-import { AI_OPERATION } from "../configs/aiPolicy.js";
+import { AI_OPERATION, getAiOperationPolicy } from "../configs/aiPolicy.js";
 import {
   AI_EXECUTION_ERROR_CODE,
   AiExecutionTimeoutError,
@@ -30,11 +30,31 @@ const response = () => {
 
 test("maps execution error codes to consistent client-safe responses", () => {
   const cases = [
-    [AI_EXECUTION_ERROR_CODE.TIMEOUT, 504, "AI request timed out. Please try again."],
-    [AI_EXECUTION_ERROR_CODE.RATE_LIMITED, 429, "AI rate limit reached. Please try again shortly."],
-    [AI_EXECUTION_ERROR_CODE.UNAVAILABLE, 503, "AI service is temporarily unavailable. Please try again shortly."],
-    [AI_EXECUTION_ERROR_CODE.CONFIGURATION, 500, "AI service is temporarily unavailable."],
-    [AI_EXECUTION_ERROR_CODE.REQUEST_FAILED, 502, "Unable to complete the AI request."],
+    [
+      AI_EXECUTION_ERROR_CODE.TIMEOUT,
+      504,
+      "AI request timed out. Please try again.",
+    ],
+    [
+      AI_EXECUTION_ERROR_CODE.RATE_LIMITED,
+      429,
+      "AI rate limit reached. Please try again shortly.",
+    ],
+    [
+      AI_EXECUTION_ERROR_CODE.UNAVAILABLE,
+      503,
+      "AI service is temporarily unavailable. Please try again shortly.",
+    ],
+    [
+      AI_EXECUTION_ERROR_CODE.CONFIGURATION,
+      500,
+      "AI service is temporarily unavailable.",
+    ],
+    [
+      AI_EXECUTION_ERROR_CODE.REQUEST_FAILED,
+      502,
+      "Unable to complete the AI request.",
+    ],
   ];
 
   for (const [code, status, message] of cases) {
@@ -59,7 +79,10 @@ test("uses an endpoint-safe fallback for non-execution errors", () => {
 });
 
 test("returns 400 for invalid summary and job-description input types", async () => {
-  for (const controller of [enhanceProfessionalSummary, enhanceJobDescription]) {
+  for (const controller of [
+    enhanceProfessionalSummary,
+    enhanceJobDescription,
+  ]) {
     for (const userContent of [undefined, null, "", "   ", 42, {}]) {
       const res = response();
       await controller({ body: { userContent } }, res);
@@ -85,6 +108,57 @@ test("returns 400 when resume import text or title is invalid", async () => {
 
     assert.equal(res.statusCode, 400);
     assert.deepEqual(res.body, { message: "Missing required fields" });
+  }
+});
+
+test("rejects AI input text above each operation limit before execution", async () => {
+  const cases = [
+    {
+      operation: AI_OPERATION.PROFESSIONAL_SUMMARY,
+      controller: "enhanceProfessionalSummary",
+      body: (value) => ({ userContent: value }),
+      fields: ["userContent"],
+    },
+    {
+      operation: AI_OPERATION.JOB_DESCRIPTION,
+      controller: "enhanceJobDescription",
+      body: (value) => ({ userContent: value }),
+      fields: ["userContent"],
+    },
+    {
+      operation: AI_OPERATION.RESUME_IMPORT,
+      controller: "uploadResume",
+      body: (value) => ({ title: "Resume", resumeText: value }),
+      fields: ["resumeText", "title"],
+    },
+  ];
+
+  for (const value of cases) {
+    const maxInputChars = getAiOperationPolicy(value.operation).maxInputChars;
+    const controllers = createAiControllers({
+      execute: async () =>
+        assert.fail("oversized input must not reach execution"),
+      ResumeModel: {
+        create: async () =>
+          assert.fail("oversized input must not be persisted"),
+      },
+    });
+
+    for (const field of value.fields) {
+      const body = value.body("x".repeat(maxInputChars + 1));
+      if (field === "title") {
+        body.title = "x".repeat(maxInputChars + 1);
+        body.resumeText = "Resume text";
+      }
+      const res = response();
+      await controllers[value.controller]({ body, userId: "user-123" }, res);
+
+      assert.equal(res.statusCode, 413);
+      assert.deepEqual(res.body, {
+        message: "Input exceeds maximum allowed length",
+        maxInputChars,
+      });
+    }
   }
 });
 
@@ -160,11 +234,13 @@ test("resume import requests structured JSON and preserves its success response"
   assert.equal(requests[0].operation, AI_OPERATION.RESUME_IMPORT);
   assert.deepEqual(requests[0].responseFormat, { type: "json_object" });
   assert.match(requests[0].messages.at(-1).content, /Original resume text/);
-  assert.deepEqual(created, [{
-    ...extractedResume,
-    userId: "user-123",
-    title: "Backend Resume",
-  }]);
+  assert.deepEqual(created, [
+    {
+      ...extractedResume,
+      userId: "user-123",
+      title: "Backend Resume",
+    },
+  ]);
   assert.equal(res.statusCode, 201);
   assert.deepEqual(res.body, { resumeId: "resume-123" });
 });
@@ -182,16 +258,23 @@ test("every controller maps timeout, rate-limit, and unavailable errors consiste
         throw error;
       },
       ResumeModel: {
-        create: async () => assert.fail("resume must not be persisted after an execution error"),
+        create: async () =>
+          assert.fail("resume must not be persisted after an execution error"),
       },
     });
     const requests = [
-      [controllers.enhanceProfessionalSummary, { body: { userContent: "Summary" } }],
+      [
+        controllers.enhanceProfessionalSummary,
+        { body: { userContent: "Summary" } },
+      ],
       [controllers.enhanceJobDescription, { body: { userContent: "Job" } }],
-      [controllers.uploadResume, {
-        userId: "user-123",
-        body: { title: "Resume", resumeText: "Resume text" },
-      }],
+      [
+        controllers.uploadResume,
+        {
+          userId: "user-123",
+          body: { title: "Resume", resumeText: "Resume text" },
+        },
+      ],
     ];
 
     for (const [controller, req] of requests) {
@@ -234,9 +317,18 @@ test("resume import rejects empty, malformed, and non-object model output", asyn
   const cases = [
     [{}, "AI returned no content"],
     [{ choices: [{ message: { content: "   " } }] }, "AI returned no content"],
-    [{ choices: [{ message: { content: "not-json" } }] }, "AI returned invalid resume data"],
-    [{ choices: [{ message: { content: "[]" } }] }, "AI returned invalid resume data"],
-    [{ choices: [{ message: { content: "null" } }] }, "AI returned invalid resume data"],
+    [
+      { choices: [{ message: { content: "not-json" } }] },
+      "AI returned invalid resume data",
+    ],
+    [
+      { choices: [{ message: { content: "[]" } }] },
+      "AI returned invalid resume data",
+    ],
+    [
+      { choices: [{ message: { content: "null" } }] },
+      "AI returned invalid resume data",
+    ],
   ];
 
   for (const [providerResponse, message] of cases) {
