@@ -1,18 +1,76 @@
-import getAI from "../configs/ai.js";
+import { AI_OPERATION } from "../configs/aiPolicy.js";
 import Resume from "../models/Resume.js";
+import {
+  AI_EXECUTION_ERROR_CODE,
+  executeAiOperation,
+} from "../services/aiExecution.js";
+
+const AI_ERROR_RESPONSES = Object.freeze({
+  [AI_EXECUTION_ERROR_CODE.TIMEOUT]: Object.freeze({
+    status: 504,
+    message: "AI request timed out. Please try again.",
+  }),
+  [AI_EXECUTION_ERROR_CODE.RATE_LIMITED]: Object.freeze({
+    status: 429,
+    message: "AI rate limit reached. Please try again shortly.",
+  }),
+  [AI_EXECUTION_ERROR_CODE.UNAVAILABLE]: Object.freeze({
+    status: 503,
+    message: "AI service is temporarily unavailable. Please try again shortly.",
+  }),
+  [AI_EXECUTION_ERROR_CODE.CONFIGURATION]: Object.freeze({
+    status: 500,
+    message: "AI service is temporarily unavailable.",
+  }),
+  [AI_EXECUTION_ERROR_CODE.REQUEST_FAILED]: Object.freeze({
+    status: 502,
+    message: "Unable to complete the AI request.",
+  }),
+});
+
+export const getAiExecutionHttpError = (
+  error,
+  fallbackMessage = "Unable to complete the AI request.",
+) => {
+  const mapped = AI_ERROR_RESPONSES[error?.code];
+  if (mapped) {
+    return {
+      status: mapped.status,
+      body: { message: mapped.message, code: error.code },
+    };
+  }
+
+  return { status: 502, body: { message: fallbackMessage } };
+};
+
+const sendAiExecutionError = (res, error, fallbackMessage) => {
+  const response = getAiExecutionHttpError(error, fallbackMessage);
+  return res.status(response.status).json(response.body);
+};
+
+const isNonEmptyText = (value) =>
+  typeof value === "string" && value.trim().length > 0;
+
+const getGeneratedContent = (response) =>
+  response?.choices?.[0]?.message?.content;
+
+export const createAiControllers = ({
+  execute = executeAiOperation,
+  ResumeModel = Resume,
+} = {}) => {
 
 // controller for enhancing a resume's professional summary
 // POST: /api/ai/enhance-pro-sum
-export const enhanceProfessionalSummary = async (req, res) => {
+const enhanceProfessionalSummary = async (req, res) => {
   try {
     const { userContent } = req.body;
 
-    if (!userContent?.trim()) {
+    if (!isNonEmptyText(userContent)) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const response = await getAI().chat.completions.create({
-      model: process.env.OPENAI_MODEL,
+    const response = await execute({
+      operation: AI_OPERATION.PROFESSIONAL_SUMMARY,
       messages: [
         {
           role: "system",
@@ -23,41 +81,29 @@ export const enhanceProfessionalSummary = async (req, res) => {
       ],
     });
 
-    const enhancedContent = response.choices[0].message.content;
-    if (!enhancedContent?.trim()) {
+    const enhancedContent = getGeneratedContent(response);
+    if (!isNonEmptyText(enhancedContent)) {
       return res.status(502).json({ message: "AI returned no content" });
     }
 
     return res.status(200).json({ enhancedContent });
   } catch (error) {
-    if (error?.status === 429) {
-      return res
-        .status(429)
-        .json({ message: "AI rate limit reached. Please try again shortly." });
-    }
-
-    if (error?.status === 503) {
-      return res.status(503).json({
-        message: "AI service is temporarily busy. Please try again in a moment.",
-      });
-    }
-
-    return res.status(502).json({ message: "Unable to enhance summary" });
+    return sendAiExecutionError(res, error, "Unable to enhance summary");
   }
 };
 
 // controller for enhancing a resume's job description
 // POST: /api/ai/enhance-job-desc
-export const enhanceJobDescription = async (req, res) => {
+const enhanceJobDescription = async (req, res) => {
   try {
     const { userContent } = req.body;
 
-    if (!userContent?.trim()) {
+    if (!isNonEmptyText(userContent)) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    const response = await getAI().chat.completions.create({
-      model: process.env.OPENAI_MODEL,
+    const response = await execute({
+      operation: AI_OPERATION.JOB_DESCRIPTION,
       messages: [
         {
           role: "system",
@@ -68,28 +114,29 @@ export const enhanceJobDescription = async (req, res) => {
       ],
     });
 
-    const enhancedContent = response.choices[0].message.content;
-    if (!enhancedContent?.trim()) {
+    const enhancedContent = getGeneratedContent(response);
+    if (!isNonEmptyText(enhancedContent)) {
       return res.status(502).json({ message: "AI returned no content" });
     }
 
     return res.status(200).json({ enhancedContent });
   } catch (error) {
-    const status = error?.status === 429 ? 429 : 502;
-    return res
-      .status(status)
-      .json({ message: "Unable to enhance job description" });
+    return sendAiExecutionError(
+      res,
+      error,
+      "Unable to enhance job description",
+    );
   }
 };
 
 // controller for uploading a resume to database
 // POST: /api/ai/upload-resume
-export const uploadResume = async (req, res) => {
+const uploadResume = async (req, res) => {
   try {
     const { resumeText, title } = req.body;
     const userId = req.userId;
 
-    if (!resumeText?.trim()) {
+    if (!isNonEmptyText(resumeText) || !isNonEmptyText(title)) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
@@ -138,8 +185,8 @@ export const uploadResume = async (req, res) => {
           },
      ],
   }`;
-    const response = await getAI().chat.completions.create({
-      model: process.env.OPENAI_MODEL,
+    const response = await execute({
+      operation: AI_OPERATION.RESUME_IMPORT,
       messages: [
         {
           role: "system",
@@ -147,11 +194,11 @@ export const uploadResume = async (req, res) => {
         },
         { role: "user", content: userPrompt },
       ],
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" },
     });
 
-    const extractedData = response.choices[0].message.content;
-    if (!extractedData?.trim()) {
+    const extractedData = getGeneratedContent(response);
+    if (!isNonEmptyText(extractedData)) {
       return res.status(502).json({ message: "AI returned no content" });
     }
 
@@ -174,12 +221,22 @@ export const uploadResume = async (req, res) => {
         .json({ message: "AI returned invalid resume data" });
     }
 
-    const newResume = await Resume.create({ ...parsedData, userId, title });
+    const newResume = await ResumeModel.create({ ...parsedData, userId, title });
     return res.status(201).json({ resumeId: newResume._id });
   } catch (error) {
-    const status = error?.status === 429 ? 429 : 502;
-    return res
-      .status(status)
-      .json({ message: "Unable to extract resume data" });
+    return sendAiExecutionError(res, error, "Unable to extract resume data");
   }
 };
+
+  return {
+    enhanceProfessionalSummary,
+    enhanceJobDescription,
+    uploadResume,
+  };
+};
+
+export const {
+  enhanceProfessionalSummary,
+  enhanceJobDescription,
+  uploadResume,
+} = createAiControllers();

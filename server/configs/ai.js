@@ -11,6 +11,10 @@ const getAI = () => {
     ai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
       baseURL: process.env.OPENAI_BASE_URL,
+      // Phase 6A owns retry classification, backoff, and the total timeout
+      // budget. Disable SDK retries so one application attempt always maps to
+      // exactly one upstream request.
+      maxRetries: 0,
     });
   }
 
