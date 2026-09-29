@@ -371,6 +371,10 @@ test("classifies only selected HTTP and temporary connection failures as retryab
     true,
   );
   assert.equal(isRetryableAiError({ name: "APIConnectionError" }), true);
+  assert.equal(
+    isRetryableAiError({ name: "APIConnectionTimeoutError" }),
+    true,
+  );
   assert.equal(isRetryableAiError({ name: "AbortError" }), false);
   assert.equal(isRetryableAiError(new Error("invalid model output")), false);
   assert.equal(isRetryableAiError(new AiExecutionTimeoutError(25_000)), false);
