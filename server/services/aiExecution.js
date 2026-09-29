@@ -206,7 +206,12 @@ const hasRetryableNetworkFailure = (error) => {
   if (!error || typeof error !== "object") return false;
 
   if (RETRYABLE_NETWORK_CODES.has(error.code)) return true;
-  if (error.name === "APIConnectionError") return true;
+  if (
+    error.name === "APIConnectionError" ||
+    error.name === "APIConnectionTimeoutError"
+  ) {
+    return true;
+  }
 
   return error.cause && error.cause !== error
     ? hasRetryableNetworkFailure(error.cause)
@@ -365,11 +370,21 @@ export const executeAiOperation = async (
         }
 
         const retryAfterMs = getRetryAfterMs(error, now());
-        const delayMs = retryAfterMs ?? getFullJitterDelayMs(retryCount, {
+        const jitterDelayMs = getFullJitterDelayMs(retryCount, {
           baseDelayMs,
           maxDelayMs,
           random,
         });
+        // Retry-After is a provider-required minimum. Do not retry earlier,
+        // but add bounded jitter so many clients do not retry simultaneously.
+        // If the provider asks us to wait longer than this operation permits,
+        // return the original error instead of violating either policy.
+        if (retryAfterMs !== undefined && retryAfterMs > maxDelayMs) {
+          throw error;
+        }
+        const delayMs = retryAfterMs === undefined
+          ? jitterDelayMs
+          : retryAfterMs + Math.min(jitterDelayMs, maxDelayMs - retryAfterMs);
         const remainingBudgetMs = deadlineAt - now();
 
         // Do not shorten a provider-requested delay or begin another attempt

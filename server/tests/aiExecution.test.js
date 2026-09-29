@@ -650,7 +650,7 @@ test("injects sleep and random so retry backoff is deterministic", async () => {
   assert.deepEqual(delays, [250, 500]);
 });
 
-test("uses Retry-After instead of jitter when the provider supplies it", async () => {
+test("uses Retry-After as a minimum and adds bounded jitter", async () => {
   let attempts = 0;
   const delays = [];
   const client = {
@@ -678,14 +678,96 @@ test("uses Retry-After instead of jitter when the provider supplies it", async (
     {
       client,
       getModel: () => "server-owned-model",
-      random: () => assert.fail("jitter must not run when Retry-After is valid"),
+      random: () => 0.5,
       sleep: async (delayMs) => delays.push(delayMs),
     },
   );
 
   assert.deepEqual(result, { id: "completion-after-retry-after" });
   assert.equal(attempts, 2);
-  assert.deepEqual(delays, [2_000]);
+  assert.deepEqual(delays, [2_250]);
+});
+
+test("does not retry when Retry-After exceeds the operation retry maximum", async () => {
+  let attempts = 0;
+  let sleepCalled = false;
+  const providerError = Object.assign(new Error("rate limited"), {
+    status: 429,
+    headers: { "retry-after": "2" },
+  });
+  const client = {
+    chat: {
+      completions: {
+        create: async () => {
+          attempts += 1;
+          throw providerError;
+        },
+      },
+    },
+  };
+
+  await assert.rejects(
+    executeAiOperation(
+      {
+        operation: AI_OPERATION.JOB_DESCRIPTION,
+        messages: [{ role: "user", content: "Job description" }],
+      },
+      {
+        client,
+        getModel: () => "server-owned-model",
+        maxDelayMs: 1_000,
+        sleep: async () => {
+          sleepCalled = true;
+        },
+      },
+    ),
+    (error) => {
+      assert.ok(error instanceof AiRateLimitedError);
+      assert.equal(error.cause, providerError);
+      return true;
+    },
+  );
+
+  assert.equal(attempts, 1);
+  assert.equal(sleepCalled, false);
+});
+
+test("caps Retry-After jitter at the configured retry maximum", async () => {
+  let attempts = 0;
+  const delays = [];
+  const client = {
+    chat: {
+      completions: {
+        create: async () => {
+          attempts += 1;
+          if (attempts === 1) {
+            throw Object.assign(new Error("rate limited"), {
+              status: 429,
+              headers: { "retry-after": "0.9" },
+            });
+          }
+          return { id: "completion-after-bounded-retry" };
+        },
+      },
+    },
+  };
+
+  const result = await executeAiOperation(
+    {
+      operation: AI_OPERATION.JOB_DESCRIPTION,
+      messages: [{ role: "user", content: "Job description" }],
+    },
+    {
+      client,
+      getModel: () => "server-owned-model",
+      maxDelayMs: 1_000,
+      random: () => 1,
+      sleep: async (delayMs) => delays.push(delayMs),
+    },
+  );
+
+  assert.deepEqual(result, { id: "completion-after-bounded-retry" });
+  assert.deepEqual(delays, [1_000]);
 });
 
 test("shares one decreasing timeout budget across retry attempts", async () => {
