@@ -10,13 +10,13 @@ import ResetPassword from "./pages/ResetPassword";
 import { useDispatch } from "react-redux";
 import api from "./configs/api";
 import { login, setLoading } from "./app/features/authSlice";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 
 const App = () => {
   const dispatch = useDispatch();
 
-  const getUserData = async () => {
+  const getUserData = useCallback(async () => {
     const token = localStorage.getItem("token");
     try {
       if (token) {
@@ -34,11 +34,11 @@ const App = () => {
       dispatch(setLoading(false));
       console.log(error.message);
     }
-  };
+  }, [dispatch]);
 
   useEffect(() => {
     getUserData();
-  }, []);
+  }, [getUserData]);
   return (
     <>
       <Toaster />

@@ -14,7 +14,6 @@ import {
   EyeIcon,
   EyeOffIcon,
   DownloadIcon,
-  LoaderCircleIcon,
 } from "lucide-react";
 import PersonalInfoForm from "../components/PersonalInfoForm";
 import ResumePreview from "../components/ResumePreview";
@@ -48,21 +47,6 @@ const ResumeBuilder = () => {
     public: false,
   });
 
-
-  const loadExistingResume = async () => {
-    try {
-      const { data } = await api.get("/api/resumes/get/" + resumeId, {
-        headers: { Authorization: token },
-      });
-      if (data.resume) {
-        setResumeData(data.resume);
-        document.title = data.resume.title;
-      }
-    } catch (error) {
-      console.log(error.message);
-    }
-  };
-
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [removeBackground, setRemoveBackground] = useState(false);
 
@@ -78,7 +62,23 @@ const ResumeBuilder = () => {
   const activeSection = sections[activeSectionIndex];
 
   useEffect(() => {
-    if (resumeId && token) loadExistingResume();
+    if (!resumeId || !token) return;
+
+    const loadExistingResume = async () => {
+      try {
+        const { data } = await api.get("/api/resumes/get/" + resumeId, {
+          headers: { Authorization: token },
+        });
+        if (data.resume) {
+          setResumeData(data.resume);
+          document.title = data.resume.title;
+        }
+      } catch (error) {
+        console.log(error.message);
+      }
+    };
+
+    loadExistingResume();
   }, [resumeId, token]);
 
   const saveResume = async () => {

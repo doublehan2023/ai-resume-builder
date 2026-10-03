@@ -11,20 +11,20 @@ const Preview = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [resumeData, setResumeData] = useState(null);
 
-  const loadResume = async () => {
-    try {
-      const { data } = await api.get("/api/resumes/public/" + resumeId);
-      setResumeData(data.resume);
-    } catch (error) {
-      console.log(error.message)
-    }finally{
-      setIsLoading(false)
-    }
-  };
-
   useEffect(() => {
+    const loadResume = async () => {
+      try {
+        const { data } = await api.get("/api/resumes/public/" + resumeId);
+        setResumeData(data.resume);
+      } catch (error) {
+        console.log(error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     loadResume();
-  }, []);
+  }, [resumeId]);
 
   return resumeData ? (
     <div className="bg-slate-100">

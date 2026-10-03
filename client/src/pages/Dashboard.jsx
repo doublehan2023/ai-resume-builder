@@ -1,5 +1,4 @@
 import {
-  AwardIcon,
   FilePenLineIcon,
   LoaderCircleIcon,
   PencilIcon,
@@ -10,7 +9,6 @@ import {
   XIcon,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { dummyResumeData } from "../assets/assets";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import api from "../configs/api";
@@ -29,17 +27,6 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
-
-  const loadAllResumes = async () => {
-    try {
-      const { data } = await api.get("/api/user/resumes", {
-        headers: { Authorization: token },
-      });
-      setAllResumes(data.resumes);
-    } catch (error) {
-      toast.error(error?.response?.data?.message || error.message);
-    }
-  };
 
   const createResume = async (event) => {
     try {
@@ -117,8 +104,19 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    const loadAllResumes = async () => {
+      try {
+        const { data } = await api.get("/api/user/resumes", {
+          headers: { Authorization: token },
+        });
+        setAllResumes(data.resumes);
+      } catch (error) {
+        toast.error(error?.response?.data?.message || error.message);
+      }
+    };
+
     loadAllResumes();
-  }, []);
+  }, [token]);
 
   return (
     <div>
