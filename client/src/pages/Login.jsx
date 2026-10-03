@@ -74,7 +74,7 @@ const Login = () => {
                     </button>
                 </div>}
 
-                <button type="submit" className="mt-2 w-full h-11 rounded-full text-white bg-green-600 hover:bg-green-500 transition " >
+                <button type="submit" className="mt-8 w-full h-11 rounded-full text-white bg-green-600 hover:bg-green-500 transition" >
                     {state === "login" ? "Login" : "Sign up"}
                 </button>
 

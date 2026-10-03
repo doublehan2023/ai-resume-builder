@@ -57,7 +57,7 @@ const ResetPassword = () => {
           </div>
         ))}
 
-        <button disabled={isSubmitting} type="submit" className="mt-5 h-11 w-full rounded-full bg-green-600 text-white transition hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-60">
+        <button disabled={isSubmitting} type="submit" className="mt-8 h-11 w-full rounded-full bg-green-600 text-white transition hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-60">
           {isSubmitting ? "Resetting..." : "Reset password"}
         </button>
       </form>
