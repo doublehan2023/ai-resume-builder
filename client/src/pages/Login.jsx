@@ -54,18 +54,18 @@ const Login = () => {
                 {state !== "login" && (
                     <div className="flex items-center mt-6 w-full bg-white/10 ring-2 ring-white/10 focus-within:ring-green-500/60 h-12 rounded-full overflow-hidden pl-6 gap-2 transition-all ">
                         <User2Icon size={16} color='#6B7280'/>
-                        <input type="text" name="name" placeholder="Name" className="w-full bg-transparent text-white placeholder-white/60 border-none outline-none " value={formData.name} onChange={handleChange} required />
+                        <input type="text" name="name" placeholder="Name" className="w-full bg-transparent text-white placeholder-white/60 border-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0" value={formData.name} onChange={handleChange} required />
                     </div>
                 )}
 
                 <div className="flex items-center w-full mt-4 bg-white/10 ring-2 ring-white/10 focus-within:ring-green-500/60 h-12 rounded-full overflow-hidden pl-6 gap-2 transition-all ">
                     <Mail size={13} color='#6B7280'/>
-                    <input type="email" name="email" placeholder="Email id" className="w-full bg-transparent text-white placeholder-white/60 border-none outline-none " value={formData.email} onChange={handleChange} required />
+                    <input type="email" name="email" placeholder="Email id" className="w-full bg-transparent text-white placeholder-white/60 border-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0" value={formData.email} onChange={handleChange} required />
                 </div>
 
                 <div className=" flex items-center mt-4 w-full bg-white/10 ring-2 ring-white/10 focus-within:ring-green-500/60 h-12 rounded-full overflow-hidden pl-6 gap-2 transition-all ">
                     <Lock size={14} color='#6B7280'/>
-                    <input type="password" name="password" placeholder="Password" className="w-full bg-transparent text-white placeholder-white/60 border-none outline-none" value={formData.password} onChange={handleChange} required />
+                    <input type="password" name="password" placeholder="Password" className="w-full bg-transparent text-white placeholder-white/60 border-none outline-none focus-visible:ring-0 focus-visible:ring-offset-0" value={formData.password} onChange={handleChange} required />
                 </div>
 
                 {state === "login" && <div className="mt-4 text-left">
@@ -74,7 +74,7 @@ const Login = () => {
                     </button>
                 </div>}
 
-                <button type="submit" className="mt-2 w-full h-11 rounded-full text-white bg-green-600 hover:bg-green-500 transition " >
+                <button type="submit" className="mt-8 w-full h-11 rounded-full text-white bg-green-600 hover:bg-green-500 transition" >
                     {state === "login" ? "Login" : "Sign up"}
                 </button>
 

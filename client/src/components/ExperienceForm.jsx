@@ -193,8 +193,7 @@ const ExperienceForm = ({ data, onChange }) => {
                   }
                   rows={4}
                   className="w-full text-sm px-3 py-2 rounded-lg border border-gray-300
-                  resize-none outline-none transition-colors focus:ring focus:ring-blue-500
-                  focus:border-blue-500"
+                  resize-none outline-none transition-colors"
                   placeholder="Describe your key responsibilities and achievements..."
                 />
               </div>

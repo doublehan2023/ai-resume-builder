@@ -43,11 +43,11 @@ const ForgotPassword = () => {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="Email address"
-                className="w-full border-none bg-transparent text-white outline-none"
+                className="w-full border-none bg-transparent text-white outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 required
               />
             </div>
-            <button disabled={isSubmitting} type="submit" className="mt-5 h-11 w-full rounded-full bg-green-600 text-white transition hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-60">
+            <button disabled={isSubmitting} type="submit" className="mt-8 h-11 w-full rounded-full bg-green-600 text-white transition hover:bg-green-500 disabled:cursor-not-allowed disabled:opacity-60">
               {isSubmitting ? "Sending..." : "Send reset link"}
             </button>
           </>

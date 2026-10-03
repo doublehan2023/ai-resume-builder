@@ -10,12 +10,16 @@
     @apply cursor-pointer;
   }
   input:not([type="checkbox"]) {
-    @apply outline-none focus:ring border border-gray-300
-    focus:ring-blue-500 focus:border-blue-500 rounded-lg;
+    @apply outline-none border border-gray-300 rounded-lg
+    focus-visible:border-green-600 focus-visible:ring-2 focus-visible:ring-gray-400/60 focus-visible:ring-offset-1;
+  }
+  input:not([type="checkbox"]):-webkit-autofill {
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: currentColor;
   }
   textarea {
-    @apply outline-none focus:ring border border-gray-300
-    focus:ring-blue-500 focus:border-blue-500 rounded-lg
+    @apply outline-none border border-gray-300 rounded-lg
+    focus-visible:border-green-600 focus-visible:ring-2 focus-visible:ring-gray-400/60 focus-visible:ring-offset-1
     resize-none;
   }
 }
