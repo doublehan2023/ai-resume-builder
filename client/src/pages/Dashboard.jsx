@@ -247,7 +247,7 @@ const Dashboard = () => {
                 type="text"
                 placeholder="Enter resume title"
                 className="w-full
-              px-4 py-2 mb-4 focus:border-green-600"
+              px-4 py-2 mb-4"
                 required
               />
               <button
@@ -288,7 +288,7 @@ const Dashboard = () => {
                 type="text"
                 placeholder="Enter resume title"
                 className="w-full
-              px-4 py-2 mb-4 focus:border-green-600"
+              px-4 py-2 mb-4"
                 required
               />
               <div>
@@ -363,7 +363,7 @@ const Dashboard = () => {
                 type="text"
                 placeholder="Enter resume title"
                 className="w-full
-              px-4 py-2 mb-4 focus:border-green-600"
+              px-4 py-2 mb-4"
                 required
               />
               <button

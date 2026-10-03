@@ -50,7 +50,7 @@ const ResetPassword = () => {
               value={field.value}
               onChange={(event) => field.setter(event.target.value)}
               placeholder={field.label}
-              className="w-full border-none bg-transparent text-white outline-none"
+              className="w-full border-none bg-transparent text-white outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
               minLength="8"
               required
             />
