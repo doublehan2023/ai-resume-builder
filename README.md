@@ -14,6 +14,22 @@ A full-stack app for creating, editing, enhancing, sharing, and downloading resu
 | File handling | Multer and ImageKit |
 | Deployment | Vercel (separate frontend and backend projects) |
 
+## Current platform and protection stack
+
+The following services and libraries support the current production architecture
+in addition to the core stack above.
+
+| Area | Technology | Purpose |
+| --- | --- | --- |
+| State and API client | Redux Toolkit, React Redux, Axios | Client state management and API communication |
+| UI and UX | Lucide React, React Hot Toast | Icons and user feedback |
+| Validation | Zod | Server-side request and resume-payload validation |
+| Email | Resend | Transactional email delivery, including password-reset flows |
+| Redis protection | Upstash Redis, Upstash Ratelimit | Per-user AI rate limits and global AI concurrency leases |
+| AI reliability | OpenAI Node SDK with Gemini's OpenAI-compatible API | Server-owned model settings, bounded retries, timeouts, and safe error handling |
+| PDF import | react-pdftotext | Client-side resume text extraction before AI-assisted import |
+| Code quality | ESLint | Frontend static analysis |
+
 ## System design
 
 ```mermaid
