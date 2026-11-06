@@ -22,6 +22,36 @@ const createRedis = (results = []) => {
   };
 };
 
+const createLeaseRedis = () => {
+  const leases = new Map();
+
+  return {
+    leases,
+    redis: {
+      eval: async (script, keys, args) => {
+        assert.deepEqual(keys, [AI_CONCURRENCY_LEASE_KEY]);
+
+        if (script.includes("ZREMRANGEBYSCORE")) {
+          const [nowMs, limit, expiresAt, token] = args;
+          for (const [activeToken, activeExpiresAt] of leases) {
+            if (activeExpiresAt <= Number(nowMs)) leases.delete(activeToken);
+          }
+
+          if (leases.size >= Number(limit)) return 0;
+          leases.set(token, Number(expiresAt));
+          return 1;
+        }
+
+        if (script.includes("ZREM")) {
+          return Number(leases.delete(args[0]));
+        }
+
+        assert.fail("Unexpected Redis script");
+      },
+    },
+  };
+};
+
 test("acquires an atomic lease and releases only its own token once", async () => {
   const provider = createRedis([1, 1]);
   const limiter = createAiConcurrencyLimiter({
@@ -52,15 +82,63 @@ test("acquires an atomic lease and releases only its own token once", async () =
   assert.deepEqual(releaseArgs, ["lease-1"]);
 });
 
-test("does not issue a lease when the global pool is full", async () => {
-  const provider = createRedis([0]);
+test("rejects the eleventh active lease and admits another after release", async () => {
+  const provider = createLeaseRedis();
+  let tokenNumber = 0;
   const limiter = createAiConcurrencyLimiter({
     redis: provider.redis,
-    createLeaseToken: () => "lease-full",
+    limit: 10,
+    createLeaseToken: () => `lease-${++tokenNumber}`,
   });
 
+  const leases = await Promise.all(
+    Array.from({ length: 10 }, () => limiter.acquire()),
+  );
+  assert.ok(leases.every(Boolean));
   assert.equal(await limiter.acquire(), null);
-  assert.equal(provider.calls.length, 1);
+
+  await leases[0].release();
+  assert.ok(await limiter.acquire());
+});
+
+test("reclaims expired leases before checking global capacity", async () => {
+  const provider = createLeaseRedis();
+  let currentTime = 1_000;
+  let tokenNumber = 0;
+  const limiter = createAiConcurrencyLimiter({
+    redis: provider.redis,
+    limit: 1,
+    leaseTtlMs: 100,
+    now: () => currentTime,
+    createLeaseToken: () => `lease-${++tokenNumber}`,
+  });
+
+  assert.ok(await limiter.acquire());
+  assert.equal(await limiter.acquire(), null);
+
+  currentTime += 101;
+  assert.ok(await limiter.acquire());
+  assert.equal(provider.leases.size, 1);
+});
+
+test("releasing one token leaves other leases counted", async () => {
+  const provider = createLeaseRedis();
+  let tokenNumber = 0;
+  const limiter = createAiConcurrencyLimiter({
+    redis: provider.redis,
+    limit: 2,
+    createLeaseToken: () => `lease-${++tokenNumber}`,
+  });
+
+  const firstLease = await limiter.acquire();
+  const secondLease = await limiter.acquire();
+  await firstLease.release();
+
+  assert.ok(await limiter.acquire());
+  await firstLease.release();
+  assert.equal(await limiter.acquire(), null);
+  assert.equal(provider.leases.size, 2);
+  await secondLease.release();
 });
 
 test("sets the default lease TTL beyond the configured AI timeout", async () => {
