@@ -5,6 +5,7 @@ import {
   AI_POLICY,
   getAiGlobalConcurrencyLimit,
   getAiOperationPolicy,
+  getAiTimeoutMs,
   getServerAiModel,
 } from "../configs/aiPolicy.js";
 
@@ -40,6 +41,18 @@ test("validates the configurable global concurrency limit", () => {
     assert.throws(
       () => getAiGlobalConcurrencyLimit({ AI_GLOBAL_CONCURRENCY: value }),
       /AI_GLOBAL_CONCURRENCY must be an integer between 1 and 100/,
+    );
+  }
+});
+
+test("validates the configurable AI timeout", () => {
+  assert.equal(getAiTimeoutMs({}), 25_000);
+  assert.equal(getAiTimeoutMs({ AI_TIMEOUT_MS: "10000" }), 10_000);
+
+  for (const value of ["0", "-1", "1.5", "invalid"]) {
+    assert.throws(
+      () => getAiTimeoutMs({ AI_TIMEOUT_MS: value }),
+      /AI_TIMEOUT_MS must be a positive safe integer/,
     );
   }
 });

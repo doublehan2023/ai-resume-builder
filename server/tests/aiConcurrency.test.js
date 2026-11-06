@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  AI_CONCURRENCY_LEASE_BUFFER_MS,
   AI_CONCURRENCY_LEASE_KEY,
   createAiConcurrencyLimiter,
 } from "../services/aiConcurrency.js";
+import { AI_POLICY } from "../configs/aiPolicy.js";
 
 const createRedis = (results = []) => {
   const calls = [];
@@ -59,6 +61,18 @@ test("does not issue a lease when the global pool is full", async () => {
 
   assert.equal(await limiter.acquire(), null);
   assert.equal(provider.calls.length, 1);
+});
+
+test("sets the default lease TTL beyond the configured AI timeout", async () => {
+  const provider = createRedis([1]);
+  const limiter = createAiConcurrencyLimiter({ redis: provider.redis });
+
+  await limiter.acquire();
+
+  assert.equal(
+    provider.calls[0][2][4],
+    String(AI_POLICY.global.timeoutMs + AI_CONCURRENCY_LEASE_BUFFER_MS),
+  );
 });
 
 test("uses a different opaque token for each acquisition", async () => {

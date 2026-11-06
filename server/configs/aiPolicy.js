@@ -13,6 +13,7 @@ const hours = (value) => value * 60 * 60 * 1000;
 
 const DEFAULT_AI_GLOBAL_CONCURRENCY = 10;
 const MAX_AI_GLOBAL_CONCURRENCY = 100;
+const DEFAULT_AI_TIMEOUT_MS = 25_000;
 
 export const getAiGlobalConcurrencyLimit = (environment = process.env) => {
   const value = environment.AI_GLOBAL_CONCURRENCY;
@@ -32,6 +33,18 @@ export const getAiGlobalConcurrencyLimit = (environment = process.env) => {
   return limit;
 };
 
+export const getAiTimeoutMs = (environment = process.env) => {
+  const value = environment.AI_TIMEOUT_MS;
+  if (value === undefined || value === "") return DEFAULT_AI_TIMEOUT_MS;
+
+  const timeoutMs = Number(value);
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) {
+    throw new Error("AI_TIMEOUT_MS must be a positive safe integer");
+  }
+
+  return timeoutMs;
+};
+
 /**
  * Server-owned policy for every AI operation. Controllers must select an
  * operation by name; client requests never supply model or limit settings.
@@ -40,8 +53,8 @@ export const AI_POLICY = Object.freeze({
   global: Object.freeze({
     // Maximum model calls running across every user at the same time.
     concurrencyLimit: getAiGlobalConcurrencyLimit(),
-    // Stop waiting for an upstream model response after 25 seconds.
-    timeoutMs: 25_000,
+    // Stop waiting for an upstream model response after the configured timeout.
+    timeoutMs: getAiTimeoutMs(),
     retry: Object.freeze({
       // A failed provider request gets, at most, two additional attempts.
       maxRetries: 2,

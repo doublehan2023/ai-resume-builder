@@ -24,15 +24,27 @@ function createAiRateLimiter(operation) {
 
 export const createAiRateLimitMiddleware = (
   operation,
-  { limiter = createAiRateLimiter(operation), logger = console } = {},
+  { limiter, logger = console } = {},
 ) => {
+  let activeLimiter = limiter;
+
   return async (req, res, next) => {
     if (!req.userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
     try {
-      const result = await limiter.limit(`user:${req.userId}`);
+      activeLimiter ??= createAiRateLimiter(operation);
+      const result = await activeLimiter.limit(`user:${req.userId}`);
+
+      if (result.reason === "timeout") {
+        logger.error("AI rate limiter unavailable", {
+          operation,
+          userId: String(req.userId),
+          error: "Rate limiter timed out",
+        });
+        return res.status(503).json({ message: "AI service is temporarily unavailable." });
+      }
 
       if (result.success) return next();
 

@@ -81,6 +81,33 @@ test("returns 429 and retry metadata when the operation limit is exhausted", asy
   assert.match(res.body.message, /Too many AI requests/);
 });
 
+test("returns 503 without proceeding when the rate limiter times out", async () => {
+  const res = response();
+  let nextCalled = false;
+  const middleware = createAiRateLimitMiddleware(
+    AI_OPERATION.PROFESSIONAL_SUMMARY,
+    {
+      limiter: {
+        limit: async () => ({
+          success: true,
+          reason: "timeout",
+          limit: 10,
+          remaining: 10,
+          reset: Date.now(),
+        }),
+      },
+    },
+  );
+
+  await middleware({ userId: "user-123" }, res, () => {
+    nextCalled = true;
+  });
+
+  assert.equal(nextCalled, false);
+  assert.equal(res.statusCode, 503);
+  assert.deepEqual(res.body, { message: "AI service is temporarily unavailable." });
+});
+
 test("rejects a request without an authenticated user before calling Redis", async () => {
   let limitCalled = false;
   const middleware = createAiRateLimitMiddleware(
@@ -103,6 +130,41 @@ test("rejects a request without an authenticated user before calling Redis", asy
   assert.equal(limitCalled, false);
   assert.equal(res.statusCode, 401);
   assert.deepEqual(res.body, { message: "Unauthorized" });
+});
+
+test("defers limiter configuration errors until an authenticated request", async () => {
+  const logged = [];
+  const middleware = createAiRateLimitMiddleware("unsupported-operation", {
+    logger: {
+      error: (...values) => logged.push(values),
+    },
+  });
+  const unauthorizedResponse = response();
+
+  await middleware({}, unauthorizedResponse, () => {
+    assert.fail("next must not be called for an unauthenticated request");
+  });
+
+  assert.equal(unauthorizedResponse.statusCode, 401);
+  assert.equal(logged.length, 0);
+
+  const authenticatedResponse = response();
+  await middleware({ userId: "user-123" }, authenticatedResponse, () => {
+    assert.fail("next must not be called when limiter configuration fails");
+  });
+
+  assert.equal(authenticatedResponse.statusCode, 503);
+  assert.deepEqual(authenticatedResponse.body, {
+    message: "AI service is temporarily unavailable.",
+  });
+  assert.deepEqual(logged, [[
+    "AI rate limiter unavailable",
+    {
+      operation: "unsupported-operation",
+      userId: "user-123",
+      error: "Unsupported AI operation: unsupported-operation",
+    },
+  ]]);
 });
 
 test("fails closed and logs safe metadata when Redis is unavailable", async () => {
