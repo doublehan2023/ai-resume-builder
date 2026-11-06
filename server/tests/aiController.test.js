@@ -41,6 +41,11 @@ test("maps execution error codes to consistent client-safe responses", () => {
       "AI rate limit reached. Please try again shortly.",
     ],
     [
+      AI_EXECUTION_ERROR_CODE.CONCURRENCY_LIMITED,
+      503,
+      "AI service is busy. Please try again shortly.",
+    ],
+    [
       AI_EXECUTION_ERROR_CODE.UNAVAILABLE,
       503,
       "AI service is temporarily unavailable. Please try again shortly.",

@@ -3,6 +3,8 @@ import test from "node:test";
 import { AI_OPERATION } from "../configs/aiPolicy.js";
 import {
   AI_EXECUTION_ERROR_CODE,
+  AiConcurrencyLimitedError,
+  AiConcurrencyUnavailableError,
   AiConfigurationError,
   AiExecutionTimeoutError,
   AiRateLimitedError,
@@ -21,9 +23,14 @@ const noopLogger = {
   error: () => {},
 };
 
+const availableConcurrency = {
+  acquire: async () => ({ release: async () => {} }),
+};
+
 const executeAiOperation = (request, dependencies = {}) =>
   executeAiOperationWithLogging(request, {
     logger: noopLogger,
+    concurrency: availableConcurrency,
     ...dependencies,
   });
 
@@ -157,13 +164,18 @@ test("enforces one total timeout budget and aborts the provider request", async 
   let timeoutCallback;
   let scheduledDelay;
   let requestSignal;
+  let markProviderStarted;
   let clearedTimeout;
   const timeoutHandle = { id: "deadline" };
+  const providerStarted = new Promise((resolve) => {
+    markProviderStarted = resolve;
+  });
   const client = {
     chat: {
       completions: {
         create: async (_request, options) => {
           requestSignal = options.signal;
+          markProviderStarted();
           return new Promise(() => {});
         },
       },
@@ -190,8 +202,7 @@ test("enforces one total timeout budget and aborts the provider request", async 
     },
   );
 
-  // Allow the provider invocation queued by the execution service to run.
-  await Promise.resolve();
+  await providerStarted;
   assert.equal(scheduledDelay, 25_000);
   assert.equal(requestSignal.aborted, false);
 
@@ -262,6 +273,234 @@ test("retries a transient provider failure and returns the later success", async
 
   assert.deepEqual(result, { id: "completion-after-retry" });
   assert.equal(attempts, 2);
+});
+
+test("acquires a global slot before a provider call and releases it afterward", async () => {
+  const events = [];
+  const concurrency = {
+    acquire: async () => {
+      events.push("acquire");
+      return { release: async () => events.push("release") };
+    },
+  };
+  const client = {
+    chat: {
+      completions: {
+        create: async () => {
+          events.push("provider");
+          return { id: "completion-1" };
+        },
+      },
+    },
+  };
+
+  await executeAiOperation(
+    {
+      operation: AI_OPERATION.PROFESSIONAL_SUMMARY,
+      messages: [{ role: "user", content: "Resume summary" }],
+    },
+    { client, concurrency, getModel: () => "server-owned-model" },
+  );
+
+  assert.deepEqual(events, ["acquire", "provider", "release"]);
+});
+
+test("fails fast when the global AI pool is full without calling the provider", async () => {
+  const provider = fakeClient();
+  const concurrency = { acquire: async () => null };
+
+  await assert.rejects(
+    executeAiOperation(
+      {
+        operation: AI_OPERATION.PROFESSIONAL_SUMMARY,
+        messages: [{ role: "user", content: "Resume summary" }],
+      },
+      { client: provider.client, concurrency, getModel: () => "server-owned-model" },
+    ),
+    (error) => {
+      assert.ok(error instanceof AiConcurrencyLimitedError);
+      assert.equal(error.code, AI_EXECUTION_ERROR_CODE.CONCURRENCY_LIMITED);
+      assert.equal(error.status, 503);
+      return true;
+    },
+  );
+
+  assert.equal(provider.requests.length, 0);
+});
+
+test("fails closed when the global AI pool is unavailable", async () => {
+  const provider = fakeClient();
+  const concurrency = {
+    acquire: async () => {
+      throw new Error("redis unavailable");
+    },
+  };
+
+  await assert.rejects(
+    executeAiOperation(
+      {
+        operation: AI_OPERATION.PROFESSIONAL_SUMMARY,
+        messages: [{ role: "user", content: "Resume summary" }],
+      },
+      { client: provider.client, concurrency, getModel: () => "server-owned-model" },
+    ),
+    (error) => {
+      assert.ok(error instanceof AiConcurrencyUnavailableError);
+      assert.equal(error.code, AI_EXECUTION_ERROR_CODE.UNAVAILABLE);
+      assert.equal(error.status, 503);
+      return true;
+    },
+  );
+
+  assert.equal(provider.requests.length, 0);
+});
+
+test("does not turn a successful provider response into a failure when release fails", async () => {
+  const entries = [];
+  const provider = fakeClient({ id: "completion-despite-release-failure" });
+  const concurrency = {
+    acquire: async () => ({
+      release: async () => {
+        throw new Error("redis release failed");
+      },
+    }),
+  };
+
+  const result = await executeAiOperation(
+    {
+      operation: AI_OPERATION.PROFESSIONAL_SUMMARY,
+      messages: [{ role: "user", content: "Resume summary" }],
+    },
+    {
+      client: provider.client,
+      concurrency,
+      getModel: () => "server-owned-model",
+      now: () => 0,
+      logger: {
+        info: () => {},
+        warn: (message, metadata) => entries.push({ message, metadata }),
+      },
+    },
+  );
+
+  assert.deepEqual(result, { id: "completion-despite-release-failure" });
+  assert.deepEqual(entries, [{
+    message: "AI concurrency lease release failed",
+    metadata: {
+      operation: AI_OPERATION.PROFESSIONAL_SUMMARY,
+      attempt: 1,
+      elapsedMs: 0,
+      outcome: "concurrency_release_failed",
+    },
+  }]);
+  assert.doesNotMatch(JSON.stringify(entries), /redis release failed/);
+});
+
+test("releases a failed attempt before retry backoff and reacquires for the retry", async () => {
+  const events = [];
+  let providerAttempt = 0;
+  const concurrency = {
+    acquire: async () => {
+      const leaseNumber = events.filter((event) => event === "acquire").length + 1;
+      events.push("acquire");
+      return { release: async () => events.push(`release-${leaseNumber}`) };
+    },
+  };
+  const client = {
+    chat: {
+      completions: {
+        create: async () => {
+          providerAttempt += 1;
+          events.push(`provider-${providerAttempt}`);
+          if (providerAttempt === 1) {
+            throw Object.assign(new Error("temporarily unavailable"), { status: 503 });
+          }
+          return { id: "completion-after-retry" };
+        },
+      },
+    },
+  };
+
+  await executeAiOperation(
+    {
+      operation: AI_OPERATION.PROFESSIONAL_SUMMARY,
+      messages: [{ role: "user", content: "Resume summary" }],
+    },
+    {
+      client,
+      concurrency,
+      getModel: () => "server-owned-model",
+      maxRetries: 1,
+      sleep: async () => events.push("backoff"),
+    },
+  );
+
+  assert.deepEqual(events, [
+    "acquire",
+    "provider-1",
+    "release-1",
+    "backoff",
+    "acquire",
+    "provider-2",
+    "release-2",
+  ]);
+});
+
+test("releases a lease when a timed-out provider call eventually settles", async () => {
+  let timeoutCallback;
+  let resolveProvider;
+  let markProviderStarted;
+  let releaseCount = 0;
+  const providerResponse = new Promise((resolve) => {
+    resolveProvider = resolve;
+  });
+  const providerStarted = new Promise((resolve) => {
+    markProviderStarted = resolve;
+  });
+  const concurrency = {
+    acquire: async () => ({
+      release: async () => {
+        releaseCount += 1;
+      },
+    }),
+  };
+  const client = {
+    chat: {
+      completions: {
+        create: async () => {
+          markProviderStarted();
+          return providerResponse;
+        },
+      },
+    },
+  };
+
+  const execution = executeAiOperation(
+    {
+      operation: AI_OPERATION.PROFESSIONAL_SUMMARY,
+      messages: [{ role: "user", content: "Resume summary" }],
+    },
+    {
+      client,
+      concurrency,
+      getModel: () => "server-owned-model",
+      setTimeout: (callback) => {
+        timeoutCallback = callback;
+        return { id: "deadline" };
+      },
+      clearTimeout: () => {},
+    },
+  );
+
+  await providerStarted;
+  timeoutCallback();
+
+  await assert.rejects(execution, AiExecutionTimeoutError);
+  assert.equal(releaseCount, 0);
+
+  resolveProvider({ id: "late-provider-response" });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releaseCount, 1);
 });
 
 test("makes at most one initial call plus the configured retries", async () => {

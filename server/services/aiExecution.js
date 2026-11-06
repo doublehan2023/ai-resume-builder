@@ -4,10 +4,12 @@ import {
   getAiOperationPolicy,
   getServerAiModel,
 } from "../configs/aiPolicy.js";
+import { getAiConcurrencyLimiter } from "./aiConcurrency.js";
 
 export const AI_EXECUTION_ERROR_CODE = Object.freeze({
   TIMEOUT: "AI_TIMEOUT",
   RATE_LIMITED: "AI_RATE_LIMITED",
+  CONCURRENCY_LIMITED: "AI_CONCURRENCY_LIMITED",
   UNAVAILABLE: "AI_UNAVAILABLE",
   CONFIGURATION: "AI_CONFIGURATION_ERROR",
   REQUEST_FAILED: "AI_REQUEST_FAILED",
@@ -43,6 +45,15 @@ export class AiRateLimitedError extends AiExecutionError {
   }
 }
 
+export class AiConcurrencyLimitedError extends AiExecutionError {
+  constructor() {
+    super("AI service is busy.", {
+      code: AI_EXECUTION_ERROR_CODE.CONCURRENCY_LIMITED,
+      status: 503,
+    });
+  }
+}
+
 export class AiUnavailableError extends AiExecutionError {
   constructor({ cause } = {}) {
     super("AI service is temporarily unavailable.", {
@@ -52,6 +63,8 @@ export class AiUnavailableError extends AiExecutionError {
     });
   }
 }
+
+export class AiConcurrencyUnavailableError extends AiUnavailableError {}
 
 export class AiConfigurationError extends AiExecutionError {
   constructor({ cause } = {}) {
@@ -150,6 +163,8 @@ const outcomeForError = (error) => {
       return "timeout";
     case AI_EXECUTION_ERROR_CODE.RATE_LIMITED:
       return "rate_limited";
+    case AI_EXECUTION_ERROR_CODE.CONCURRENCY_LIMITED:
+      return "concurrency_limited";
     case AI_EXECUTION_ERROR_CODE.UNAVAILABLE:
       return "unavailable";
     case AI_EXECUTION_ERROR_CODE.CONFIGURATION:
@@ -220,6 +235,8 @@ const hasRetryableNetworkFailure = (error) => {
 
 export const isRetryableAiError = (error) => {
   if (error instanceof AiExecutionTimeoutError) return false;
+  if (error instanceof AiConcurrencyLimitedError) return false;
+  if (error instanceof AiConcurrencyUnavailableError) return false;
   if (error?.name === "AbortError") return false;
 
   const status = errorStatus(error);
@@ -302,6 +319,7 @@ export const executeAiOperation = async (
   const cancelTimeout = dependencies.clearTimeout ?? globalThis.clearTimeout;
   const sleep = dependencies.sleep ?? defaultSleep;
   const random = dependencies.random ?? Math.random;
+  const concurrency = dependencies.concurrency;
 
   const request = {
     model,
@@ -328,17 +346,74 @@ export const executeAiOperation = async (
     }, timeoutMs);
   });
 
+  const releaseConcurrencyLease = async (lease, attemptNumber) => {
+    try {
+      await lease.release();
+    } catch {
+      safeLog(
+        logger,
+        "warn",
+        "AI concurrency lease release failed",
+        executionMetadata({
+          operation,
+          attempt: attemptNumber,
+          elapsedMs: Math.max(0, now() - startedAt),
+          outcome: "concurrency_release_failed",
+        }),
+      );
+    }
+  };
+
+  const acquireConcurrencyLease = async () => {
+    try {
+      const limiter = concurrency ?? getAiConcurrencyLimiter();
+      const lease = await limiter.acquire();
+      if (!lease) throw new AiConcurrencyLimitedError();
+      return lease;
+    } catch (error) {
+      if (error instanceof AiConcurrencyLimitedError) throw error;
+      throw new AiConcurrencyUnavailableError({ cause: error });
+    }
+  };
+
   try {
     let retryCount = 0;
 
     while (true) {
       attempt += 1;
-      const remainingAttemptMs = Math.max(1, deadlineAt - now());
+      const leasePromise = acquireConcurrencyLease();
+      // A Redis call can settle after the overall deadline. Release a late
+      // lease immediately so it cannot consume capacity after the request has
+      // already failed.
+      void leasePromise.then(
+        (lease) => {
+          if (controller.signal.aborted) {
+            void releaseConcurrencyLease(lease, attempt);
+          }
+        },
+        () => {},
+      );
+
+      const lease = await Promise.race([leasePromise, timeoutPromise]);
+      if (controller.signal.aborted) {
+        void releaseConcurrencyLease(lease, attempt);
+        throw timeoutError;
+      }
+
+      const remainingAttemptMs = deadlineAt - now();
+      if (remainingAttemptMs <= 0) {
+        void releaseConcurrencyLease(lease, attempt);
+        throw timeoutError;
+      }
       const providerPromise = Promise.resolve().then(() =>
         client.chat.completions.create(request, {
           signal: controller.signal,
           timeout: remainingAttemptMs,
         }),
+      );
+      const releasePromise = providerPromise.then(
+        () => releaseConcurrencyLease(lease, attempt),
+        () => releaseConcurrencyLease(lease, attempt),
       );
 
       try {
@@ -359,6 +434,13 @@ export const executeAiOperation = async (
         return response;
       } catch (error) {
         const timeoutExpired = controller.signal.aborted;
+
+        // A failed attempt must return its slot before backoff or the next
+        // attempt. Do not wait here after an overall timeout: providerPromise
+        // already releases the slot when it eventually settles.
+        if (!timeoutExpired) {
+          await Promise.race([releasePromise, timeoutPromise]);
+        }
         const retriesExhausted = retryCount >= maxRetries;
 
         if (

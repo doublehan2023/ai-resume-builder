@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   AI_OPERATION,
   AI_POLICY,
+  getAiGlobalConcurrencyLimit,
   getAiOperationPolicy,
   getServerAiModel,
 } from "../configs/aiPolicy.js";
@@ -19,7 +20,7 @@ test("defines a complete, positive policy for every AI operation", () => {
   }
 });
 
-test("uses the locked global concurrency and retry settings", () => {
+test("uses validated global concurrency and retry settings", () => {
   assert.equal(AI_POLICY.global.concurrencyLimit, 10);
   assert.equal(AI_POLICY.global.timeoutMs, 25_000);
   assert.deepEqual(AI_POLICY.global.retry, {
@@ -28,6 +29,19 @@ test("uses the locked global concurrency and retry settings", () => {
     maxDelayMs: 15_000,
     strategy: "full-jitter",
   });
+});
+
+test("validates the configurable global concurrency limit", () => {
+  assert.equal(getAiGlobalConcurrencyLimit({}), 10);
+  assert.equal(getAiGlobalConcurrencyLimit({ AI_GLOBAL_CONCURRENCY: "1" }), 1);
+  assert.equal(getAiGlobalConcurrencyLimit({ AI_GLOBAL_CONCURRENCY: "100" }), 100);
+
+  for (const value of ["0", "101", "1.5", "invalid"]) {
+    assert.throws(
+      () => getAiGlobalConcurrencyLimit({ AI_GLOBAL_CONCURRENCY: value }),
+      /AI_GLOBAL_CONCURRENCY must be an integer between 1 and 100/,
+    );
+  }
 });
 
 test("rejects unsupported operations", () => {

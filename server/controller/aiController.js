@@ -14,6 +14,10 @@ const AI_ERROR_RESPONSES = Object.freeze({
     status: 429,
     message: "AI rate limit reached. Please try again shortly.",
   }),
+  [AI_EXECUTION_ERROR_CODE.CONCURRENCY_LIMITED]: Object.freeze({
+    status: 503,
+    message: "AI service is busy. Please try again shortly.",
+  }),
   [AI_EXECUTION_ERROR_CODE.UNAVAILABLE]: Object.freeze({
     status: 503,
     message: "AI service is temporarily unavailable. Please try again shortly.",

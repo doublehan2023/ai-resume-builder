@@ -11,15 +11,35 @@ export const AI_OPERATION = Object.freeze({
 const minutes = (value) => value * 60 * 1000;
 const hours = (value) => value * 60 * 60 * 1000;
 
+const DEFAULT_AI_GLOBAL_CONCURRENCY = 10;
+const MAX_AI_GLOBAL_CONCURRENCY = 100;
+
+export const getAiGlobalConcurrencyLimit = (environment = process.env) => {
+  const value = environment.AI_GLOBAL_CONCURRENCY;
+  if (value === undefined || value === "") return DEFAULT_AI_GLOBAL_CONCURRENCY;
+
+  const limit = Number(value);
+  if (
+    !Number.isSafeInteger(limit) ||
+    limit < 1 ||
+    limit > MAX_AI_GLOBAL_CONCURRENCY
+  ) {
+    throw new Error(
+      `AI_GLOBAL_CONCURRENCY must be an integer between 1 and ${MAX_AI_GLOBAL_CONCURRENCY}`,
+    );
+  }
+
+  return limit;
+};
+
 /**
  * Server-owned policy for every AI operation. Controllers must select an
  * operation by name; client requests never supply model or limit settings.
  */
 export const AI_POLICY = Object.freeze({
   global: Object.freeze({
-    // Maximum model calls running across every user at the same time. Phase 6
-    // will enforce this with a shared Redis semaphore.
-    concurrencyLimit: 10,
+    // Maximum model calls running across every user at the same time.
+    concurrencyLimit: getAiGlobalConcurrencyLimit(),
     // Stop waiting for an upstream model response after 25 seconds.
     timeoutMs: 25_000,
     retry: Object.freeze({
